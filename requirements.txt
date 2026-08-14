@@ -1,0 +1,8 @@
+streamlit
+google-genai
+python-docx
+python-pptx
+pandas
+openpyxl
+pillow
+requests
