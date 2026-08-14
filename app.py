@@ -240,12 +240,16 @@ st.sidebar.title(ui["sidebar_title"])
 user_name = st.sidebar.text_input(ui["name_label"], value="Mayank", key="user_name_input")
 user_role = st.sidebar.selectbox(ui["role_label"], ui["roles"], key="user_role_select")
 
+# Check Streamlit Secrets first, then session_state, else blank
+secret_key = st.secrets.get("GEMINI_API_KEY", "")
+default_key = secret_key if secret_key else st.session_state.get("saved_api_key", "")
+
 api_key_input = st.sidebar.text_input(
     ui["api_key_label"], 
     type="password", 
-    value=st.session_state.saved_api_key,
+    value=default_key,
     key="gemini_api_key_input",
-    help="Get your key at aistudio.google.com"
+    help="Pre-configured via Cloud Secrets or enter manually at aistudio.google.com"
 )
 
 if api_key_input:
