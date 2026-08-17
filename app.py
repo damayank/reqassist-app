@@ -36,7 +36,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Sidebar nowrap fix, standard buttons, and prominent #051330 CTA button
+# Custom CSS: Sidebar nowrap fix, standard buttons, and prominent #051330 CTA button with BIG text
 st.markdown("""
 <style>
     /* 1. Safe top & bottom padding */
@@ -136,7 +136,7 @@ st.markdown("""
 
     /* ---------------------------------------------------------
        4. Primary Action Button: #051330 (Dark Blue) -> #f56642 (Hover/Click)
-          +15% larger size (56px height, 18px text, 34px padding)
+          EXTRA LARGE TEXT (22px font, 64px button height)
        --------------------------------------------------------- */
     .st-key-main_generate_btn button,
     .st-key-main_generate_btn button[kind="primary"],
@@ -145,14 +145,14 @@ st.markdown("""
         background-color: #051330 !important;   /* Shade: #051330 */
         color: #ffffff !important;
         border: 1px solid #051330 !important;
-        font-size: 18px !important;            /* +15% font size */
+        font-size: 22px !important;            /* Extra large button text */
         font-weight: 700 !important;
-        height: 56px !important;               /* +15% height */
-        min-height: 56px !important;
-        max-height: 56px !important;
-        padding: 0 34px !important;
-        border-radius: 8px !important;
-        box-shadow: 0 4px 16px rgba(5, 19, 48, 0.45) !important;
+        height: 64px !important;               /* Enlarged container height */
+        min-height: 64px !important;
+        max-height: 64px !important;
+        padding: 0 40px !important;
+        border-radius: 10px !important;
+        box-shadow: 0 6px 20px rgba(5, 19, 48, 0.45) !important;
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
 
@@ -161,7 +161,8 @@ st.markdown("""
     .st-key-main_generate_btn button span {
         color: #ffffff !important;
         font-weight: 700 !important;
-        font-size: 18px !important;
+        font-size: 22px !important;            /* Force child text tags to 22px */
+        line-height: 1.2 !important;
     }
 
     /* Hover & Active / Clicked State: #f56642 */
@@ -174,7 +175,7 @@ st.markdown("""
         border-color: #f56642 !important;
         color: #ffffff !important;
         transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(245, 102, 66, 0.45) !important;
+        box-shadow: 0 10px 28px rgba(245, 102, 66, 0.45) !important;
     }
 
     .st-key-main_generate_btn button:hover p,
