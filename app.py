@@ -22,7 +22,7 @@ from google import genai
 from google.genai import types
 
 # Active Google Gemini Model
-MODEL_NAME = "gemini-2.0-flash"
+MODEL_NAME = "gemini-latest-flash"
 
 # Try importing pypdf for PDF reading
 try:
