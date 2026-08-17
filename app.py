@@ -326,6 +326,8 @@ T = {
         "quiz_score_title": "Quiz Assessment Results",
         "quiz_passed": "🎉 Excellent work! You passed the requirements check (≥ 75%)!",
         "quiz_failed": "📚 Score is below 75%. Please review the detailed explanations below:",
+        "quiz_focus_title": "🎯 Recommended Areas to Focus On:",
+        "quiz_focus_intro": "Pay close attention to these requirement topics where questions were missed:",
         "quiz_your_ans": "Your Answer:",
         "quiz_correct_ans": "Correct Answer:",
         "quiz_explanation": "Explanation & Requirement Reference:",
@@ -374,6 +376,8 @@ T = {
         "quiz_score_title": "Risultati della Valutazione del Quiz",
         "quiz_passed": "🎉 Ottimo lavoro! Hai superato la verifica dei requisiti (≥ 75%)!",
         "quiz_failed": "📚 Punteggio inferiore al 75%. Consulta le spiegazioni dettagliate di seguito:",
+        "quiz_focus_title": "🎯 Aree di Focus Consigliate:",
+        "quiz_focus_intro": "Presta particolare attenzione a questi requisiti in cui le risposte non erano corrette:",
         "quiz_your_ans": "La Tua Risposta:",
         "quiz_correct_ans": "Risposta Corretta:",
         "quiz_explanation": "Spiegazione e Riferimento ai Requisiti:",
@@ -645,13 +649,11 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
     for slide_idx, slide_data in enumerate(slides_json):
         slide = prs.slides.add_slide(prs.slide_layouts[6])
         
-        # 1. Dark Blue Background
         bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.333), Inches(7.5))
         bg.fill.solid()
         bg.fill.fore_color.rgb = DARK_BLUE
         bg.line.fill.background()
         
-        # 2. Title in Pure White
         title_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.5), Inches(11.7), Inches(0.85))
         tf_title = title_box.text_frame
         tf_title.word_wrap = True
@@ -676,7 +678,6 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
             p.font.color.rgb = SOFT_WHITE
             p.space_after = Pt(10)
             
-        # 3. Context-Driven Visual Asset
         if is_visual_slide:
             try:
                 if prepared_figma and not use_ai_diagram_toggle:
@@ -692,7 +693,6 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
             except Exception:
                 pass
                 
-        # 4. Slide Footer
         footer_box = slide.shapes.add_textbox(Inches(0.8), Inches(6.8), Inches(11.7), Inches(0.4))
         tf_footer = footer_box.text_frame
         p_footer = tf_footer.paragraphs[0]
@@ -1087,6 +1087,7 @@ You MUST respond ENTIRELY and STRICTLY in {lang_key}. All headings, titles, desc
     [
       {{
         "id": 1,
+        "topic": "Short Topic Name (e.g. Validation Rules, API Contract, DB State, RBAC)",
         "question": "Question text in {lang_key}?",
         "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
         "correct_option": "A",
@@ -1231,6 +1232,77 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                         st.session_state["quiz_submitted"] = True
                         st.rerun()
             else:
+                # Calculate Score & Track Missed Areas
+                correct_count = 0
+                total_count = len(quiz_items)
+                missed_topics = []
+                
+                for q_idx, item in enumerate(quiz_items):
+                    user_ans = st.session_state.get("quiz_user_answers", {}).get(q_idx, "")
+                    chosen_letter = user_ans.split(")")[0].strip().upper() if user_ans else ""
+                    correct_letter = item.get("correct_option", "").strip().upper()
+                    if chosen_letter == correct_letter:
+                        correct_count += 1
+                    else:
+                        # Extract topic or question summary
+                        topic_name = item.get("topic") or f"Question {q_idx+1}: {item.get('question', '')[:65]}..."
+                        missed_topics.append((q_idx + 1, topic_name, item.get("explanation", "")))
+                        
+                pct = (correct_count / total_count) * 100 if total_count > 0 else 0
+                is_passing = (pct >= 75)
+
+                # Emoji selection based on score tier
+                if pct >= 90:
+                    score_emoji = "🏆"
+                elif pct >= 75:
+                    score_emoji = "🎯"
+                elif pct >= 50:
+                    score_emoji = "⚠️"
+                else:
+                    score_emoji = "❌"
+
+                st.markdown(f"### {ui['quiz_score_title']}")
+
+                # Enhanced Scorecard UI
+                theme_color = "#16a34a" if is_passing else "#dc2626"
+                bg_color = "#f0fdf4" if is_passing else "#fef2f2"
+                border_color = "#86efac" if is_passing else "#fca5a5"
+
+                st.markdown(f"""
+                <div style="background-color: {bg_color}; border: 2px solid {border_color}; border-radius: 12px; padding: 22px 28px; margin-bottom: 24px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                            <div style="font-size: 14px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Requirement Assessment</div>
+                            <div style="font-size: 28px; font-weight: 800; color: #0f172a; margin-top: 4px;">
+                                Score: <span style="color: {theme_color};">{correct_count} / {total_count}</span>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 14px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Percentage</div>
+                            <div style="font-size: 32px; font-weight: 900; color: {theme_color}; margin-top: 2px;">
+                                {pct:.1f}% <span style="font-size: 28px;">{score_emoji}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                if is_passing:
+                    st.success(ui["quiz_passed"])
+                    st.balloons()
+                else:
+                    st.error(ui["quiz_failed"])
+                    
+                    # Targeted "Where to focus more" recommendation box
+                    st.markdown(f"#### {ui['quiz_focus_title']}")
+                    st.markdown(f"*{ui['quiz_focus_intro']}*")
+                    for q_num, topic_title, _ in missed_topics:
+                        st.markdown(f"- 📌 **Question {q_num} ({topic_title})**")
+                    st.write("")
+
+                st.markdown("---")
+                st.markdown("#### Detailed Breakdown:")
+
                 for q_idx, item in enumerate(quiz_items):
                     st.markdown(f"##### {q_idx + 1}. {item.get('question')}")
                     opts = item.get("options", [])
@@ -1251,41 +1323,6 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                             
                     st.info(f"**{ui['quiz_explanation']}** {item.get('explanation')}")
                     st.markdown("---")
-                    
-                correct_count = 0
-                total_count = len(quiz_items)
-                for q_idx, item in enumerate(quiz_items):
-                    user_ans = st.session_state.get("quiz_user_answers", {}).get(q_idx, "")
-                    chosen_letter = user_ans.split(")")[0].strip().upper() if user_ans else ""
-                    correct_letter = item.get("correct_option", "").strip().upper()
-                    if chosen_letter == correct_letter:
-                        correct_count += 1
-                        
-                pct = (correct_count / total_count) * 100 if total_count > 0 else 0
-                st.markdown(f"### {ui['quiz_score_title']}")
-                
-                # Dynamic Red (<75%) vs Green (>=75%) Styling
-                is_passing = (pct >= 75)
-                score_color = "#16a34a" if is_passing else "#dc2626"
-                bg_color = "#f0fdf4" if is_passing else "#fef2f2"
-                border_color = "#86efac" if is_passing else "#fca5a5"
-                
-                score_col1, score_col2 = st.columns([1, 2])
-                with score_col1:
-                    st.markdown(f"""
-                    <div style="background-color: {bg_color}; border: 2px solid {border_color}; border-radius: 10px; padding: 14px; text-align: center;">
-                        <div style="font-size: 13px; font-weight: 600; color: #475569; text-transform: uppercase;">Score</div>
-                        <div style="font-size: 32px; font-weight: 800; color: {score_color}; margin: 4px 0;">{correct_count} / {total_count}</div>
-                        <div style="font-size: 18px; font-weight: 700; color: {score_color};">{pct:.1f}%</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                with score_col2:
-                    if is_passing:
-                        st.success(ui["quiz_passed"])
-                        st.balloons()
-                    else:
-                        st.error(ui["quiz_failed"])
                         
                 col_r1, col_r2, col_r3 = st.columns([1, 1.5, 1])
                 with col_r2:
