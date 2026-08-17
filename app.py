@@ -94,7 +94,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Sidebar nowrap fix, standard buttons, prominent #051330 CTA button
+# Custom CSS: Sidebar nowrap, CTA styling, plain text loaded indicators & Orange Circular Spinner
 st.markdown("""
 <style>
     /* 1. Safe top & bottom padding */
@@ -243,7 +243,7 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* 5. Plain Text Upload Indicator (No button borders or background) */
+    /* 5. Plain Text Upload Indicator */
     .plain-upload-status {
         color: #15803d !important;
         font-size: 14px !important;
@@ -257,11 +257,53 @@ st.markdown("""
         color: #166534 !important;
         font-weight: 700 !important;
     }
+
+    /* ---------------------------------------------------------
+       6. Orange Circular Process Spinner Bar
+       --------------------------------------------------------- */
+    div[data-testid="stSpinner"] {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 1.8rem 0 !important;
+    }
+    
+    /* CSS-based circular loader border */
+    div[data-testid="stSpinner"] > div {
+        border-top-color: #f56642 !important;       /* Bright Orange Top */
+        border-right-color: rgba(245, 102, 66, 0.2) !important;
+        border-bottom-color: rgba(245, 102, 66, 0.2) !important;
+        border-left-color: rgba(245, 102, 66, 0.2) !important;
+        border-width: 3.5px !important;
+        width: 32px !important;
+        height: 32px !important;
+    }
+
+    /* SVG-based circular spinner */
+    div[data-testid="stSpinner"] svg {
+        color: #f56642 !important;
+        stroke: #f56642 !important;
+        width: 32px !important;
+        height: 32px !important;
+    }
+    div[data-testid="stSpinner"] svg circle {
+        stroke: #f56642 !important;
+        stroke-width: 3.5px !important;
+    }
+
+    /* Spinner status text */
+    div[data-testid="stSpinner"] p,
+    div[data-testid="stSpinner"] span {
+        color: #0f172a !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        margin-left: 12px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# UI Dictionary (English & Italiano Only - Clean Button Names)
+# UI Dictionary (English & Italiano)
 # ---------------------------------------------------------
 T = {
     "English": {
@@ -292,6 +334,15 @@ T = {
         "popup_title": "⚠️ Missing Required Documents",
         "popup_msg": "ReqAssist strictly requires the following document(s) before generating this artifact. Please upload them in Step 1:",
         "popup_btn": "OK, Got It",
+        "quiz_header": "🧠 Interactive Requirements & Knowledge Check",
+        "quiz_submit_btn": "🎯 Submit Quiz for Grading",
+        "quiz_retake_btn": "🔄 Retake Quiz",
+        "quiz_score_title": "Quiz Assessment Results",
+        "quiz_passed": "🎉 Excellent work! You passed the requirements check!",
+        "quiz_failed": "📚 Review needed. Check the detailed explanations below:",
+        "quiz_your_ans": "Your Answer:",
+        "quiz_correct_ans": "Correct Answer:",
+        "quiz_explanation": "Explanation & Requirement Reference:",
         "options": [
             "📝 Acceptance Criteria (AC)",
             "🧪 Test Cases",
@@ -330,6 +381,15 @@ T = {
         "popup_title": "⚠️ Documenti Obbligatori Mancanti",
         "popup_msg": "ReqAssist richiede obbligatoriamente i seguenti documenti prima di procedere. Caricali nel Passaggio 1:",
         "popup_btn": "OK, Ho Capito",
+        "quiz_header": "🧠 Quiz Interattivo di Verifica Requisiti",
+        "quiz_submit_btn": "🎯 Invia Quiz per la Valutazione",
+        "quiz_retake_btn": "🔄 Ripeti il Quiz",
+        "quiz_score_title": "Risultati della Valutazione del Quiz",
+        "quiz_passed": "🎉 Ottimo lavoro! Hai superato la verifica dei requisiti!",
+        "quiz_failed": "📚 Revisione consigliata. Consulta le spiegazioni dettagliate di seguito:",
+        "quiz_your_ans": "La Tua Risposta:",
+        "quiz_correct_ans": "Risposta Corretta:",
+        "quiz_explanation": "Spiegazione e Riferimento ai Requisiti:",
         "options": [
             "📝 Acceptance Criteria (AC)",
             "🧪 Test Cases (Casi di Test)",
@@ -470,7 +530,7 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
     
     img_idx = 0
     for slide_data in slides_json:
-        slide = prs.slides.add_slide(prs.slide_layouts[6]) # blank canvas layout
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
         
         # 1. Slide Title
         title_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.5), Inches(11.7), Inches(0.8))
@@ -481,7 +541,7 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
         p_title.font.size = Pt(24)
         p_title.font.bold = True
         
-        # 2. Bullet Points (Left side if image exists, full width if no images)
+        # 2. Bullet Points
         has_images = figma_files and len(figma_files) > 0
         text_width = Inches(6.2) if has_images else Inches(11.5)
         
@@ -559,7 +619,6 @@ def extract_voiceover_and_synthesize_audio(markdown_text: str, lang: str = "en")
     if gTTS is None:
         return None
     try:
-        # Extract narration from voiceover column or paragraph text
         lines = markdown_text.split("\n")
         voiceover_lines = []
         for line in lines:
@@ -571,7 +630,7 @@ def extract_voiceover_and_synthesize_audio(markdown_text: str, lang: str = "en")
                 voiceover_lines.append(line.strip())
                 
         narration = " ".join(voiceover_lines)
-        narration = re.sub(r'[*_#`]', '', narration)  # Remove markdown formatting
+        narration = re.sub(r'[*_#`]', '', narration)
         
         if len(narration.strip()) < 20:
             narration = "Welcome to the product feature walkthrough generated by ReqAssist."
@@ -583,6 +642,21 @@ def extract_voiceover_and_synthesize_audio(markdown_text: str, lang: str = "en")
         return audio_bio
     except Exception:
         return None
+
+def convert_quiz_json_to_markdown(quiz_data: list, lang_name: str) -> str:
+    """Converts structured quiz JSON to clean, readable markdown for export."""
+    md_out = f"# 🧠 {'Quiz sui Requisiti' if lang_name == 'Italiano' else 'Requirements Quiz'}\n\n"
+    for idx, item in enumerate(quiz_data, 1):
+        md_out += f"### {idx}. {item.get('question')}\n"
+        for opt in item.get('options', []):
+            md_out += f"- {opt}\n"
+        md_out += "\n"
+        
+    md_out += f"\n## {'Chiave di Risposta & Spiegazioni' if lang_name == 'Italiano' else 'Answer Key & Explanations'}\n\n"
+    for idx, item in enumerate(quiz_data, 1):
+        md_out += f"**{idx}. {'Risposta Corretta' if lang_name == 'Italiano' else 'Correct Answer'}:** `{item.get('correct_option')}`\n"
+        md_out += f"- **{'Spiegazione' if lang_name == 'Italiano' else 'Explanation'}:** {item.get('explanation')}\n\n"
+    return md_out
 
 # ---------------------------------------------------------
 # STEP 1: Upload Source Materials (Clean, Plain-Text Indicators)
@@ -706,8 +780,11 @@ if generate_clicked:
         show_missing_data_popup(missing_core_items)
         st.stop()
 
+    # Orange circular progress spinner is rendered here
     with st.spinner(f"ReqAssist is generating ({lang_key})..."):
         
+        is_quiz_mode = (current_idx == 6)
+
         system_prompt = f"""
 [ROLE & PERSONA]
 You are "ReqAssist," an energetic Principal Business Analyst and Product Requirements Architect. Address the user as {user_name}.
@@ -758,8 +835,17 @@ You MUST respond ENTIRELY and STRICTLY in {lang_key}. All headings, titles, desc
 - FAQs:
   - Clean, plain text Markdown format (no button or box structures). Group into Developer Technical FAQs and Stakeholder Business FAQs.
 
-- Quiz:
-  - Clean, plain text Multiple-Choice Questions (10 questions) with Answer Key and rationale at the end (no button or badge structures).
+- Quiz Mode:
+  - Return a valid JSON array of 8 to 10 question objects with the exact schema:
+    [
+      {{
+        "id": 1,
+        "question": "Question text in {lang_key}?",
+        "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+        "correct_option": "A",
+        "explanation": "Detailed explanation grounding why this is correct based on the provided documents."
+      }}
+    ]
 """
 
         user_content = f"""
@@ -785,12 +871,23 @@ Generate the complete artifact strictly adhering to the requested templates and 
             output_text, model_used = generate_resilient_content(
                 client_inst=client,
                 contents=contents,
-                system_prompt=system_prompt
+                system_prompt=system_prompt,
+                response_mime_type="application/json" if is_quiz_mode else None
             )
             
             st.session_state["generated_output"] = output_text
             st.session_state["generated_option"] = current_option
             st.session_state["generated_idx"] = current_idx
+            
+            # Reset interactive quiz state on new generation
+            if is_quiz_mode:
+                try:
+                    st.session_state["quiz_data"] = json.loads(output_text)
+                except Exception:
+                    st.session_state["quiz_data"] = None
+                st.session_state["quiz_submitted"] = False
+                st.session_state["quiz_user_answers"] = {}
+                
             st.success(f"🎉 Generation Complete! (Powered by {model_used})")
 
         except Exception as e:
@@ -817,15 +914,101 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                 st.audio(audio_track, format="audio/mp3")
                 st.markdown("---")
                 
-        st.markdown(output_text)
+        # 🧠 Interactive Playable Quiz Engine
+        if active_opt_idx == 6 and st.session_state.get("quiz_data"):
+            quiz_items = st.session_state["quiz_data"]
+            st.subheader(ui["quiz_header"])
+            st.write("")
+
+            user_choices = {}
+            for q_idx, item in enumerate(quiz_items):
+                st.markdown(f"##### {q_idx + 1}. {item.get('question')}")
+                opts = item.get("options", [])
+                
+                # Check if quiz has been graded
+                if st.session_state.get("quiz_submitted", False):
+                    selected = st.session_state.get("quiz_user_answers", {}).get(q_idx, "")
+                    correct_letter = item.get("correct_option", "").strip().upper()
+                    
+                    chosen_letter = selected.split(")")[0].strip().upper() if selected else ""
+                    is_correct = (chosen_letter == correct_letter)
+                    
+                    for opt in opts:
+                        opt_letter = opt.split(")")[0].strip().upper()
+                        if opt_letter == correct_letter:
+                            st.markdown(f"🟢 **{opt}** *(Correct Answer)*")
+                        elif opt_letter == chosen_letter:
+                            st.markdown(f"🔴 **{opt}** *(Your Selection)*")
+                        else:
+                            st.markdown(f"⚪ {opt}")
+                            
+                    st.info(f"**{ui['quiz_explanation']}** {item.get('explanation')}")
+                    st.markdown("---")
+                else:
+                    # Active playable radio buttons
+                    chosen = st.radio(
+                        label=f"Options for Q{q_idx+1}",
+                        options=opts,
+                        key=f"quiz_radio_{q_idx}",
+                        label_visibility="collapsed",
+                        index=None
+                    )
+                    user_choices[q_idx] = chosen
+                    st.write("")
+
+            # Quiz Action Buttons
+            if not st.session_state.get("quiz_submitted", False):
+                col_q1, col_q2, col_q3 = st.columns([1, 1.5, 1])
+                with col_q2:
+                    if st.button(ui["quiz_submit_btn"], type="primary", use_container_width=True):
+                        st.session_state["quiz_user_answers"] = user_choices
+                        st.session_state["quiz_submitted"] = True
+                        st.rerun()
+            else:
+                # Scoring Calculation
+                correct_count = 0
+                total_count = len(quiz_items)
+                for q_idx, item in enumerate(quiz_items):
+                    user_ans = st.session_state.get("quiz_user_answers", {}).get(q_idx, "")
+                    chosen_letter = user_ans.split(")")[0].strip().upper() if user_ans else ""
+                    correct_letter = item.get("correct_option", "").strip().upper()
+                    if chosen_letter == correct_letter:
+                        correct_count += 1
+                        
+                pct = (correct_count / total_count) * 100 if total_count > 0 else 0
+                st.markdown(f"### {ui['quiz_score_title']}")
+                
+                score_col1, score_col2 = st.columns([1, 2])
+                with score_col1:
+                    st.metric(label="Score", value=f"{correct_count} / {total_count}", delta=f"{pct:.0f}%")
+                with score_col2:
+                    if pct >= 70:
+                        st.success(ui["quiz_passed"])
+                        st.balloons()
+                    else:
+                        st.warning(ui["quiz_failed"])
+                        
+                col_r1, col_r2, col_r3 = st.columns([1, 1.5, 1])
+                with col_r2:
+                    if st.button(ui["quiz_retake_btn"], use_container_width=True):
+                        st.session_state["quiz_submitted"] = False
+                        st.session_state["quiz_user_answers"] = {}
+                        st.rerun()
+        else:
+            st.markdown(output_text)
         
     with tab_down:
         base_name = active_opt_name.split(" ", 1)[-1].replace(" ", "_").replace("/", "_")
         col_d1, col_d2, col_d3 = st.columns(3)
         
+        # Prepare content for export
+        exportable_text = output_text
+        if active_opt_idx == 6 and st.session_state.get("quiz_data"):
+            exportable_text = convert_quiz_json_to_markdown(st.session_state["quiz_data"], lang_key)
+        
         # 1. Word Document (.docx) Export
         with col_d1:
-            docx_bio = create_docx(active_opt_name, output_text)
+            docx_bio = create_docx(active_opt_name, exportable_text)
             st.download_button(
                 label=ui["docx_btn"],
                 data=docx_bio,
@@ -839,7 +1022,7 @@ if "generated_output" in st.session_state and st.session_state["generated_output
             try:
                 ppt_json_text, _ = generate_resilient_content(
                     client_inst=client,
-                    contents=[f"Convert this deliverable into a structured presentation as a JSON array of slide objects with keys 'title', 'bullets' (list of strings), 'notes' (string). Keep text strictly in {lang_key}:\n\n{output_text}"],
+                    contents=[f"Convert this deliverable into a structured presentation as a JSON array of slide objects with keys 'title', 'bullets' (list of strings), 'notes' (string). Keep text strictly in {lang_key}:\n\n{exportable_text}"],
                     response_mime_type="application/json"
                 )
                 slides_data = json.loads(ppt_json_text)
@@ -858,7 +1041,7 @@ if "generated_output" in st.session_state and st.session_state["generated_output
         with col_d3:
             st.download_button(
                 label=ui["md_btn"],
-                data=output_text.encode("utf-8"),
+                data=exportable_text.encode("utf-8"),
                 file_name=f"ReqAssist_{base_name}_{user_name}.md",
                 mime="text/markdown",
                 use_container_width=True
