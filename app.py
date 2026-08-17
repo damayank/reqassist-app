@@ -94,7 +94,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Sidebar nowrap, CTA styling, plain text loaded indicators & Orange Circular Spinner
+# Custom CSS: Sidebar nowrap, CTA styling, plain text loaded indicators & Mid-Size Orange Spinner
 st.markdown("""
 <style>
     /* 1. Safe top & bottom padding */
@@ -198,12 +198,12 @@ st.markdown("""
     .st-key-main_generate_btn button[kind="primary"],
     div[data-testid="stButton"].st-key-main_generate_btn > button,
     div[data-testid="stButton"].st-key-main_generate_btn > button[kind="primary"] {
-        background-color: #051330 !important;   /* Shade: #051330 */
+        background-color: #051330 !important;
         color: #ffffff !important;
         border: 1px solid #051330 !important;
-        font-size: 22px !important;            /* Extra large button text */
+        font-size: 22px !important;
         font-weight: 700 !important;
-        height: 64px !important;               /* Enlarged container height */
+        height: 64px !important;
         min-height: 64px !important;
         max-height: 64px !important;
         padding: 0 40px !important;
@@ -227,7 +227,7 @@ st.markdown("""
     .st-key-main_generate_btn button:focus:active,
     div[data-testid="stButton"].st-key-main_generate_btn > button:hover,
     div[data-testid="stButton"].st-key-main_generate_btn > button:active {
-        background-color: #f56642 !important;   /* Hover / Click: #f56642 */
+        background-color: #f56642 !important;
         border-color: #f56642 !important;
         color: #ffffff !important;
         transform: translateY(-2px);
@@ -259,45 +259,46 @@ st.markdown("""
     }
 
     /* ---------------------------------------------------------
-       6. Orange Circular Process Spinner Bar
+       6. Mid-Size Orange Circular Progress Spinner (Fixed Wrapping)
        --------------------------------------------------------- */
     div[data-testid="stSpinner"] {
         display: flex !important;
+        flex-direction: row !important;
         align-items: center !important;
         justify-content: center !important;
-        padding: 1.8rem 0 !important;
-    }
-    
-    /* CSS-based circular loader border */
-    div[data-testid="stSpinner"] > div {
-        border-top-color: #f56642 !important;       /* Bright Orange Top */
-        border-right-color: rgba(245, 102, 66, 0.2) !important;
-        border-bottom-color: rgba(245, 102, 66, 0.2) !important;
-        border-left-color: rgba(245, 102, 66, 0.2) !important;
-        border-width: 3.5px !important;
-        width: 32px !important;
-        height: 32px !important;
+        gap: 16px !important;
+        padding: 2rem 0 !important;
+        width: 100% !important;
     }
 
-    /* SVG-based circular spinner */
-    div[data-testid="stSpinner"] svg {
+    /* Mid-size circular spinner animation (40px) */
+    div[data-testid="stSpinner"] svg,
+    div[data-testid="stSpinner"] i {
         color: #f56642 !important;
         stroke: #f56642 !important;
-        width: 32px !important;
-        height: 32px !important;
-    }
-    div[data-testid="stSpinner"] svg circle {
-        stroke: #f56642 !important;
-        stroke-width: 3.5px !important;
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px !important;
+        min-height: 40px !important;
     }
 
-    /* Spinner status text */
+    div[data-testid="stSpinner"] svg circle {
+        stroke: #f56642 !important;
+        stroke-width: 4px !important;
+    }
+
+    /* Keep progress text horizontal, full width, and legible */
     div[data-testid="stSpinner"] p,
-    div[data-testid="stSpinner"] span {
+    div[data-testid="stSpinner"] span,
+    div[data-testid="stSpinner"] label {
         color: #0f172a !important;
-        font-size: 16px !important;
+        font-size: 17px !important;
         font-weight: 600 !important;
-        margin-left: 12px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: auto !important;
+        white-space: nowrap !important;
+        display: inline-block !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -780,7 +781,7 @@ if generate_clicked:
         show_missing_data_popup(missing_core_items)
         st.stop()
 
-    # Orange circular progress spinner is rendered here
+    # Mid-size circular orange spinner with clean horizontal progress text
     with st.spinner(f"ReqAssist is generating ({lang_key})..."):
         
         is_quiz_mode = (current_idx == 6)
