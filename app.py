@@ -36,7 +36,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Sidebar nowrap fix, standard buttons, and prominent #203985 -> #f56642 CTA button
+# Custom CSS: Sidebar nowrap fix, standard buttons, and prominent #10347d CTA button
 st.markdown("""
 <style>
     /* 1. Safe top & bottom padding */
@@ -135,13 +135,13 @@ st.markdown("""
     }
 
     /* ---------------------------------------------------------
-       4. Primary Action Button: #203985 (Default) -> #f56642 (Hover/Click)
-          +15% larger size (56px height, 18px text, generous padding)
+       4. Primary Action Button: #10347d (Dark Blue) -> #f56642 (Hover/Click)
+          +15% larger size (56px height, 18px text, 34px padding)
        --------------------------------------------------------- */
     div.st-key-main_generate_btn button {
-        background-color: #203985 !important;   /* Default State: #203985 */
+        background-color: #10347d !important;   /* Target Dark Blue */
         color: #ffffff !important;
-        border: 1px solid #203985 !important;
+        border: 1px solid #10347d !important;
         font-size: 18px !important;            /* +15% font enlargement */
         font-weight: 700 !important;
         height: 56px !important;               /* +15% height enlargement */
@@ -149,7 +149,7 @@ st.markdown("""
         max-height: 56px !important;
         padding: 0 34px !important;
         border-radius: 8px !important;
-        box-shadow: 0 4px 16px rgba(32, 57, 133, 0.35) !important;
+        box-shadow: 0 4px 16px rgba(16, 52, 125, 0.35) !important;
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
 
@@ -161,7 +161,7 @@ st.markdown("""
         font-size: 18px !important;
     }
 
-    /* Hover & Active / Clicked State: #f56642 */
+    /* Hover & Active / Clicked State */
     div.st-key-main_generate_btn button:hover,
     div.st-key-main_generate_btn button:active,
     div.st-key-main_generate_btn button:focus:active {
@@ -184,7 +184,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# UI Dictionary (English & Italiano Only)
+# UI Dictionary (English & Italiano Only - No Number Icons)
 # ---------------------------------------------------------
 T = {
     "English": {
@@ -196,9 +196,9 @@ T = {
         "api_key_warn": "⚠️ Gemini API Key missing. Please configure GEMINI_API_KEY in Streamlit Cloud Secrets.",
         "welcome": "Let's turn your raw requirements into high-impact deliverables.",
         "step1_title": "📂 STEP 1: Upload Source Documentation & Assets",
-        "raw_title": "📄 1. Functional Notes RAW",
-        "excel_title": "📊 2. Field Validations",
-        "figma_title": "🎨 3. Figma UI Screens (.png, .jpg)",
+        "raw_title": "📄 Functional Notes RAW",
+        "excel_title": "📊 Field Validations",
+        "figma_title": "🎨 Figma UI Screens (.png, .jpg)",
         "supported_formats_help": "Supported: .docx, .txt, .pdf, .xlsx, .csv, .xls",
         "step2_title": "⚡ STEP 2: Select & Generate Deliverable",
         "generate_btn": "✨ Generate Deliverable",
@@ -208,18 +208,18 @@ T = {
         "xlsx_btn": "📊 Download Test Cases (.xlsx)",
         "pptx_btn": "📊 Download Presentation (.pptx)",
         "md_btn": "📝 Download Markdown (.md)",
-        "viewer_err": "🚫 Access Restricted: Options 1 to 4 are restricted to BA & PM roles. Please contact your project PM or PO.",
+        "viewer_err": "🚫 Access Restricted: These options are restricted to BA & PM roles. Please contact your project PM or PO.",
         "popup_title": "⚠️ Missing Required Documents",
         "popup_msg": "ReqAssist strictly requires the following document(s) before generating this artifact. Please upload them in Step 1:",
         "popup_btn": "OK, Got It",
         "options": [
-            "1️⃣ 📝 Acceptance Criteria (AC)",
-            "2️⃣ 🧪 Test Cases",
-            "3️⃣ 📑 Detailed Functional Analysis",
-            "4️⃣ 🎥 Demo Video",
-            "5️⃣ 📊 Presentation / PPT (5 to 10 slides)",
-            "6️⃣ ❓ FAQs",
-            "7️⃣ 🧠 Quiz"
+            "📝 Acceptance Criteria (AC)",
+            "🧪 Test Cases",
+            "📑 Detailed Functional Analysis",
+            "🎥 Demo Video",
+            "📊 Presentation / PPT (5 to 10 slides)",
+            "❓ FAQs",
+            "🧠 Quiz"
         ]
     },
     "Italiano": {
@@ -231,9 +231,9 @@ T = {
         "api_key_warn": "⚠️ Chiave API Gemini mancante. Configura GEMINI_API_KEY nei Secrets di Streamlit Cloud.",
         "welcome": "Trasformiamo i tuoi requisiti in deliverable di alto impatto.",
         "step1_title": "📂 PASSAGGIO 1: Carica la Documentazione Sorgente & Asset",
-        "raw_title": "📄 1. Analisi Funzionale RAW",
-        "excel_title": "📊 2. Validazioni Campi",
-        "figma_title": "🎨 3. Schermate UI Figma (.png, .jpg)",
+        "raw_title": "📄 Analisi Funzionale RAW",
+        "excel_title": "📊 Validazioni Campi",
+        "figma_title": "🎨 Schermate UI Figma (.png, .jpg)",
         "supported_formats_help": "Formati supportati: .docx, .txt, .pdf, .xlsx, .csv, .xls",
         "step2_title": "⚡ PASSAGGIO 2: Seleziona & Genera Deliverable",
         "generate_btn": "✨ Genera Deliverable",
@@ -243,18 +243,18 @@ T = {
         "xlsx_btn": "📊 Scarica Test Case in Excel (.xlsx)",
         "pptx_btn": "📊 Scarica Presentazione (.pptx)",
         "md_btn": "📝 Scarica Markdown (.md)",
-        "viewer_err": "🚫 Accesso Limitato: Le opzioni da 1 a 4 sono riservate a BA e PM. Contatta il PM o PO del progetto.",
+        "viewer_err": "🚫 Accesso Limitato: Queste opzioni sono riservate a BA e PM. Contatta il PM o PO del progetto.",
         "popup_title": "⚠️ Documenti Obbligatori Mancanti",
         "popup_msg": "ReqAssist richiede obbligatoriamente i seguenti documenti prima di procedere. Caricali nel Passaggio 1:",
         "popup_btn": "OK, Ho Capito",
         "options": [
-            "1️⃣ 📝 Acceptance Criteria (AC)",
-            "2️⃣ 🧪 Test Cases (Casi di Test)",
-            "3️⃣ 📑 Analisi Funzionale Dettagliata",
-            "4️⃣ 🎥 Video Demo",
-            "5️⃣ 📊 Presentazione / PPT (5-10 slide)",
-            "6️⃣ ❓ FAQ (Domande Frequenti)",
-            "7️⃣ 🧠 Quiz"
+            "📝 Acceptance Criteria (AC)",
+            "🧪 Test Cases (Casi di Test)",
+            "📑 Analisi Funzionale Dettagliata",
+            "🎥 Video Demo",
+            "📊 Presentazione / PPT (5-10 slide)",
+            "❓ FAQ (Domande Frequenti)",
+            "🧠 Quiz"
         ]
     }
 }
@@ -287,7 +287,7 @@ st.sidebar.title(ui["sidebar_title"])
 user_name = st.sidebar.text_input(ui["name_label"], value="Mayank", key="user_name_input")
 user_role = st.sidebar.selectbox(ui["role_label"], ui["roles"], key="user_role_select")
 
-# 🔒 Silent Secret Loading (Backend only, never exposed on the web UI)
+# 🔒 Silent Secret Loading (Backend only)
 api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 
 # ---------------------------------------------------------
@@ -470,7 +470,7 @@ with st.container():
 st.markdown("---")
 
 # ---------------------------------------------------------
-# STEP 2: Deliverable Selection
+# STEP 2: Deliverable Selection (Clean Names without numbers)
 # ---------------------------------------------------------
 st.markdown(f"### {ui['step2_title']}")
 
@@ -514,7 +514,7 @@ if needs_figma and not figma_images:
     missing_core_items.append(ui["figma_title"])
 
 # ---------------------------------------------------------
-# Centered, Enlarged CTA Action Button (Positioned at Bottom)
+# Centered, Prominent #10347d Action Button (Positioned at Bottom)
 # ---------------------------------------------------------
 # Generous vertical space to position the button near the bottom of the screen
 st.markdown("<div style='margin-top: 4.5rem; margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
