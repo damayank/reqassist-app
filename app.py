@@ -1,6 +1,7 @@
 import os
 import ssl
 import time
+import tempfile
 import urllib3
 
 # Disable SSL verification for corporate proxy/firewall
@@ -19,7 +20,10 @@ import pandas as pd
 from docx import Document
 from pptx import Presentation
 from pptx.util import Inches, Pt
-from PIL import Image
+from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.text import PP_ALIGN
+from PIL import Image, ImageDraw, ImageFont
 from google import genai
 from google.genai import types
 
@@ -29,11 +33,22 @@ try:
 except ImportError:
     pypdf = None
 
-# Optional Text-to-Speech Audio Generation for Demo Video
+# Optional Text-to-Speech Audio Generation
 try:
     from gtts import gTTS
 except ImportError:
     gTTS = None
+
+# Optional MP4 Video Generation Engine
+try:
+    from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
+    MOVIEPY_AVAILABLE = True
+except Exception:
+    try:
+        from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
+        MOVIEPY_AVAILABLE = True
+    except Exception:
+        MOVIEPY_AVAILABLE = False
 
 # ---------------------------------------------------------
 # Primary Model Cascade (Gemini 3.x Flash Family)
@@ -259,7 +274,7 @@ st.markdown("""
     }
 
     /* ---------------------------------------------------------
-       6. Mid-Size Orange Circular Progress Spinner (Fixed Wrapping)
+       6. Mid-Size Orange Circular Progress Spinner (Fixed Alignment)
        --------------------------------------------------------- */
     div[data-testid="stSpinner"] {
         display: flex !important;
@@ -329,8 +344,9 @@ T = {
         "pptx_btn": "📊 Download Presentation (.pptx)",
         "md_btn": "📝 Download Markdown (.md)",
         "audio_btn": "🎙️ Download Demo Voiceover (.mp3)",
+        "mp4_btn": "🎬 Download Demo Video (.mp4)",
+        "video_player_title": "🎬 Generated MP4 Demo Walkthrough (Watch & Download)",
         "audio_player_title": "🎧 Generated Voiceover Audio Track (Listen & Download)",
-        "audio_info": "💡 Note on MP4 Video: Language models generate scripts/storyboards. Below is the generated Audio Voiceover clip ready for your slide deck or video editor.",
         "viewer_err": "🚫 Access Restricted: These options are restricted to BA & PM roles. Please contact your project PM or PO.",
         "popup_title": "⚠️ Missing Required Documents",
         "popup_msg": "ReqAssist strictly requires the following document(s) before generating this artifact. Please upload them in Step 1:",
@@ -376,8 +392,9 @@ T = {
         "pptx_btn": "📊 Scarica Presentazione (.pptx)",
         "md_btn": "📝 Scarica Markdown (.md)",
         "audio_btn": "🎙️ Scarica Traccia Audio Demo (.mp3)",
+        "mp4_btn": "🎬 Scarica Video Demo (.mp4)",
+        "video_player_title": "🎬 Video Demo MP4 Generato (Guarda & Scarica)",
         "audio_player_title": "🎧 Traccia Audio Voiceover Generata (Ascolta & Scarica)",
-        "audio_info": "💡 Nota sui Video MP4: I modelli linguistici generano script e storyboard. Di seguito trovi la traccia audio voiceover (.mp3) pronta per la presentazione.",
         "viewer_err": "🚫 Accesso Limitato: Queste opzioni sono riservate a BA e PM. Contatta il PM o PO del progetto.",
         "popup_title": "⚠️ Documenti Obbligatori Mancanti",
         "popup_msg": "ReqAssist richiede obbligatoriamente i seguenti documenti prima di procedere. Caricali nel Passaggio 1:",
@@ -504,7 +521,7 @@ def parse_uploaded_file(uploaded_file) -> str:
         return f"Error reading {uploaded_file.name}: {str(e)}"
 
 # ---------------------------------------------------------
-# Helper Functions: Exporters (DOCX, PPTX with Images, Multi-Sheet XLSX, Audio)
+# Helper Functions: Exporters (DOCX, PPTX Dark Blue with Images, Multi-Sheet XLSX, Audio & Direct MP4)
 # ---------------------------------------------------------
 def create_docx(title: str, content: str) -> io.BytesIO:
     doc = Document()
@@ -523,53 +540,156 @@ def create_docx(title: str, content: str) -> io.BytesIO:
     bio.seek(0)
     return bio
 
+def generate_ai_diagram_card(title: str, subtitle: str) -> io.BytesIO:
+    """Generates an AI conceptual visual card stamped with the ReqAssist watermark."""
+    img = Image.new("RGB", (1000, 750), color=(15, 30, 65))
+    draw = ImageDraw.Draw(img)
+    
+    # Outer accent border
+    draw.rounded_rectangle([20, 20, 980, 730], radius=16, outline=(37, 99, 235), width=3)
+    
+    # Header card area
+    draw.rounded_rectangle([40, 40, 960, 130], radius=12, fill=(30, 58, 110))
+    draw.text((60, 65), title[:38], fill=(255, 255, 255))
+    
+    # Diagram simulation blocks
+    draw.rounded_rectangle([70, 170, 460, 360], radius=12, fill=(20, 40, 85), outline=(59, 130, 246), width=2)
+    draw.text((90, 200), "INPUT / CONTRACT", fill=(245, 102, 66))
+    draw.text((90, 245), "• Schema & Validation\n• Token Authentication\n• Preconditions Check", fill=(226, 232, 240))
+    
+    draw.rounded_rectangle([530, 170, 920, 360], radius=12, fill=(20, 40, 85), outline=(34, 197, 94), width=2)
+    draw.text((550, 200), "CORE PROCESSING", fill=(34, 197, 94))
+    draw.text((550, 245), "• Business Rules Logic\n• State Machine Transition\n• DB Commit & Events", fill=(226, 232, 240))
+    
+    draw.rounded_rectangle([70, 400, 920, 590], radius=12, fill=(20, 40, 85), outline=(168, 85, 247), width=2)
+    draw.text((90, 430), "OUTPUT & SYSTEM RESPONSE", fill=(192, 132, 252))
+    draw.text((90, 475), f"• {subtitle[:65]}\n• Real-Time UI Feedback & Telemetry Logging", fill=(226, 232, 240))
+    
+    # Watermark mark
+    draw.rounded_rectangle([680, 635, 950, 695], radius=8, fill=(5, 19, 48), outline=(245, 102, 66), width=2)
+    draw.text((705, 655), "ReqAssist • AI Diagram", fill=(245, 102, 66))
+    
+    bio = io.BytesIO()
+    img.save(bio, format="PNG")
+    bio.seek(0)
+    return bio
+
+def add_watermark_to_figma_screen(uploaded_file) -> io.BytesIO:
+    """Overlays the official ReqAssist watermark badge onto uploaded Figma screens."""
+    try:
+        uploaded_file.seek(0)
+        img = Image.open(uploaded_file).convert("RGBA")
+        
+        # Watermark badge
+        badge_w, badge_h = 260, 45
+        badge = Image.new("RGBA", (badge_w, badge_h), (5, 19, 48, 230))
+        b_draw = ImageDraw.Draw(badge)
+        b_draw.rectangle([0, 0, badge_w-1, badge_h-1], outline=(245, 102, 66, 255), width=2)
+        b_draw.text((15, 12), "ReqAssist • Figma Visual", fill=(255, 255, 255, 255))
+        
+        # Stamp at bottom right of the image
+        img.paste(badge, (max(10, img.width - badge_w - 20), max(10, img.height - badge_h - 20)), badge)
+        
+        bio = io.BytesIO()
+        img.save(bio, format="PNG")
+        bio.seek(0)
+        return bio
+    except Exception:
+        uploaded_file.seek(0)
+        return uploaded_file
+
 def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.BytesIO:
-    """Generates PowerPoint presentation embedding Figma UI screens alongside bullets & speaker notes."""
+    """
+    Generates a 16:9 Presentation:
+    - Dark Blue Background (#051330)
+    - White Font (#FFFFFF)
+    - At least 40% of slides contain AI-generated diagrams or Figma screens with ReqAssist mark
+    """
     prs = Presentation()
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
     
-    img_idx = 0
-    for slide_data in slides_json:
-        slide = prs.slides.add_slide(prs.slide_layouts[6])
+    DARK_BLUE = RGBColor(5, 19, 48)       # #051330
+    WHITE = RGBColor(255, 255, 255)       # #FFFFFF
+    SOFT_WHITE = RGBColor(241, 245, 249)  # #F1F5F9
+    ACCENT_ORANGE = RGBColor(245, 102, 66)# #F56642
+    MUTED_GREY = RGBColor(148, 163, 184)  # #94A3B8
+    
+    total_slides = len(slides_json)
+    # Determine indices that must have visuals (at least 40% quota)
+    visual_indices = set()
+    num_visual_slides = max(int(total_slides * 0.45), 1)
+    step = max(total_slides // num_visual_slides, 1)
+    for i in range(0, total_slides, step):
+        visual_indices.add(i)
+        if len(visual_indices) >= num_visual_slides:
+            break
+            
+    figma_idx = 0
+    prepared_figma = [add_watermark_to_figma_screen(f) for f in (figma_files or [])]
+    
+    for slide_idx, slide_data in enumerate(slides_json):
+        slide = prs.slides.add_slide(prs.slide_layouts[6]) # Blank layout
         
-        # 1. Slide Title
-        title_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.5), Inches(11.7), Inches(0.8))
+        # 1. Full-bleed Dark Blue Background (#051330)
+        bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.333), Inches(7.5))
+        bg.fill.solid()
+        bg.fill.fore_color.rgb = DARK_BLUE
+        bg.line.fill.background()
+        
+        # 2. Slide Title in Pure White
+        title_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.5), Inches(11.7), Inches(0.85))
         tf_title = title_box.text_frame
         tf_title.word_wrap = True
         p_title = tf_title.paragraphs[0]
-        p_title.text = slide_data.get("title", "Slide")
-        p_title.font.size = Pt(24)
+        p_title.text = slide_data.get("title", f"Slide {slide_idx + 1}")
+        p_title.font.size = Pt(26)
         p_title.font.bold = True
+        p_title.font.color.rgb = WHITE
         
-        # 2. Bullet Points
-        has_images = figma_files and len(figma_files) > 0
-        text_width = Inches(6.2) if has_images else Inches(11.5)
+        # 3. Slide Content Layout (Split layout for visual slides)
+        is_visual_slide = (slide_idx in visual_indices)
+        text_width = Inches(6.2) if is_visual_slide else Inches(11.5)
         
-        text_box = slide.shapes.add_textbox(Inches(0.8), Inches(1.5), text_width, Inches(5.2))
+        text_box = slide.shapes.add_textbox(Inches(0.8), Inches(1.5), text_width, Inches(5.0))
         tf = text_box.text_frame
         tf.word_wrap = True
         
-        for idx, bullet in enumerate(slide_data.get("bullets", [])):
-            p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
+        bullets = slide_data.get("bullets", [])
+        for b_idx, bullet in enumerate(bullets):
+            p = tf.paragraphs[0] if b_idx == 0 else tf.add_paragraph()
             p.text = f"• {bullet}"
             p.font.size = Pt(16)
+            p.font.color.rgb = SOFT_WHITE
             p.space_after = Pt(10)
             
-        # 3. Speaker Notes
+        # 4. Embed Visual Asset on 40%+ of Slides (Figma Screen OR AI Diagram Card)
+        if is_visual_slide:
+            try:
+                if prepared_figma:
+                    img_stream = prepared_figma[figma_idx % len(prepared_figma)]
+                    figma_idx += 1
+                else:
+                    first_bullet = bullets[0] if bullets else "System Requirement Workflow"
+                    img_stream = generate_ai_diagram_card(slide_data.get("title", "Architecture"), first_bullet)
+                
+                img_stream.seek(0)
+                slide.shapes.add_picture(img_stream, Inches(7.3), Inches(1.5), width=Inches(5.2))
+            except Exception:
+                pass
+                
+        # 5. Persistent ReqAssist Watermark & Slide Counter Footer
+        footer_box = slide.shapes.add_textbox(Inches(0.8), Inches(6.8), Inches(11.7), Inches(0.4))
+        tf_footer = footer_box.text_frame
+        p_footer = tf_footer.paragraphs[0]
+        p_footer.text = f"ReqAssist 🚀 • Requirements Architecture | Slide {slide_idx + 1} of {total_slides}"
+        p_footer.font.size = Pt(11)
+        p_footer.font.color.rgb = MUTED_GREY
+        
+        # 6. Speaker Notes
         if "notes" in slide_data and slide_data["notes"]:
             notes_slide = slide.notes_slide
             notes_slide.notes_text_frame.text = slide_data["notes"]
-            
-        # 4. Embed Uploaded Figma Screen on Right Side
-        if has_images:
-            try:
-                chosen_img = figma_files[img_idx % len(figma_files)]
-                img_idx += 1
-                chosen_img.seek(0)
-                slide.shapes.add_picture(chosen_img, Inches(7.3), Inches(1.5), width=Inches(5.2))
-            except Exception:
-                pass
 
     bio = io.BytesIO()
     prs.save(bio)
@@ -615,32 +735,106 @@ def parse_markdown_tables_to_excel(markdown_text: str) -> io.BytesIO:
     bio.seek(0)
     return bio
 
+def extract_voiceover_script(markdown_text: str) -> str:
+    """Extracts spoken narration text from the Demo Video Markdown storyboard."""
+    lines = markdown_text.split("\n")
+    voiceover_lines = []
+    for line in lines:
+        if "|" in line:
+            parts = [p.strip() for p in line.split("|") if p.strip()]
+            if len(parts) >= 3 and not any(h in parts[-1].lower() for h in ["voiceover", "script", "---", "testo"]):
+                voiceover_lines.append(parts[-1])
+        elif not line.startswith("#") and len(line.strip()) > 20:
+            voiceover_lines.append(line.strip())
+            
+    narration = " ".join(voiceover_lines)
+    narration = re.sub(r'[*_#`]', '', narration)
+    return narration.strip() if len(narration.strip()) > 10 else "Welcome to the product feature demo walkthrough generated by ReqAssist."
+
 def extract_voiceover_and_synthesize_audio(markdown_text: str, lang: str = "en") -> io.BytesIO:
-    """Extracts voiceover scripts from Demo Video markdown and generates an MP3 audio track."""
+    """Generates MP3 voiceover audio track from demo storyboard."""
     if gTTS is None:
         return None
     try:
-        lines = markdown_text.split("\n")
-        voiceover_lines = []
-        for line in lines:
-            if "|" in line:
-                parts = [p.strip() for p in line.split("|") if p.strip()]
-                if len(parts) >= 3 and not any(h in parts[-1].lower() for h in ["voiceover", "script", "---"]):
-                    voiceover_lines.append(parts[-1])
-            elif not line.startswith("#") and len(line.strip()) > 20:
-                voiceover_lines.append(line.strip())
-                
-        narration = " ".join(voiceover_lines)
-        narration = re.sub(r'[*_#`]', '', narration)
-        
-        if len(narration.strip()) < 20:
-            narration = "Welcome to the product feature walkthrough generated by ReqAssist."
-            
+        narration = extract_voiceover_script(markdown_text)
         tts = gTTS(text=narration[:4000], lang="it" if lang == "Italiano" else "en", slow=False)
         audio_bio = io.BytesIO()
         tts.write_to_fp(audio_bio)
         audio_bio.seek(0)
         return audio_bio
+    except Exception:
+        return None
+
+def generate_mp4_video(markdown_text: str, figma_files: list, lang: str = "en") -> bytes:
+    """
+    Directly compiles and encodes a real MP4 video by combining 
+    the AI voiceover with the uploaded Figma screens.
+    """
+    if not MOVIEPY_AVAILABLE or gTTS is None:
+        return None
+    
+    try:
+        # 1. Synthesize audio to temporary MP3
+        narration = extract_voiceover_script(markdown_text)
+        temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tts = gTTS(text=narration[:4000], lang="it" if lang == "Italiano" else "en", slow=False)
+        tts.save(temp_audio.name)
+        temp_audio.close()
+        
+        audio_clip = AudioFileClip(temp_audio.name)
+        total_duration = max(audio_clip.duration, 4.0)
+
+        # 2. Prepare screen images
+        temp_img_paths = []
+        if figma_files and len(figma_files) > 0:
+            for img in figma_files:
+                watermarked_img = add_watermark_to_figma_screen(img)
+                t_img = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+                t_img.write(watermarked_img.read())
+                t_img.close()
+                temp_img_paths.append(t_img.name)
+        else:
+            # Fallback blank slide
+            placeholder = Image.new("RGB", (1280, 720), color=(5, 19, 48))
+            t_img = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+            placeholder.save(t_img.name)
+            t_img.close()
+            temp_img_paths.append(t_img.name)
+
+        # 3. Create video clips & set durations
+        duration_per_slide = total_duration / len(temp_img_paths)
+        clips = [ImageClip(p).set_duration(duration_per_slide) for p in temp_img_paths]
+        video_clip = concatenate_videoclips(clips, method="compose")
+        video_clip = video_clip.set_audio(audio_clip)
+
+        # 4. Render to MP4
+        temp_video = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        temp_video.close()
+        video_clip.write_videofile(
+            temp_video.name, 
+            fps=24, 
+            codec="libx264", 
+            audio_codec="aac", 
+            verbose=False, 
+            logger=None
+        )
+        
+        audio_clip.close()
+        video_clip.close()
+
+        with open(temp_video.name, "rb") as f:
+            mp4_bytes = f.read()
+
+        # Clean up temporary files
+        try:
+            os.remove(temp_audio.name)
+            os.remove(temp_video.name)
+            for p in temp_img_paths:
+                os.remove(p)
+        except Exception:
+            pass
+
+        return mp4_bytes
     except Exception:
         return None
 
@@ -831,7 +1025,7 @@ You MUST respond ENTIRELY and STRICTLY in {lang_key}. All headings, titles, desc
   | {'Timestamp' if lang_key == 'Italiano' else 'Timestamp'} | {'Schermata / UI Area' if lang_key == 'Italiano' else 'UI Screen / Area'} | {'Azione Visiva' if lang_key == 'Italiano' else 'Visual Action'} | {'Script Voiceover (Voce Narrante)' if lang_key == 'Italiano' else 'Voiceover Script (Narrator)'} |
 
 - PPT Slides (5 to 10 slides):
-  - Structured for executive review with Slide Title, Bullets, Figma visual reference tag, and full Speaker Notes.
+  - Structured for executive review with Slide Title, Bullets, visual reference note, and full Speaker Notes.
 
 - FAQs:
   - Clean, plain text Markdown format (no button or box structures). Group into Developer Technical FAQs and Stakeholder Business FAQs.
@@ -895,7 +1089,7 @@ Generate the complete artifact strictly adhering to the requested templates and 
             st.error(f"Error during generation: {str(e)}")
 
 # ---------------------------------------------------------
-# Output Display & Direct Exports (.docx, .pptx, .md, .xlsx, .mp3)
+# Output Display & Direct Exports (.docx, .pptx, .md, .xlsx, .mp3, .mp4)
 # ---------------------------------------------------------
 if "generated_output" in st.session_state and st.session_state["generated_output"]:
     output_text = st.session_state["generated_output"]
@@ -906,14 +1100,19 @@ if "generated_output" in st.session_state and st.session_state["generated_output
     tab_out, tab_down = st.tabs([ui["tab_output"], ui["tab_download"]])
     
     with tab_out:
-        # If Demo Video was generated, provide direct in-app voiceover audio player
+        # If Demo Video was selected, render in-app MP4 player or Audio player
         if active_opt_idx == 3:
-            st.info(ui["audio_info"])
-            audio_track = extract_voiceover_and_synthesize_audio(output_text, lang=lang_key)
-            if audio_track:
-                st.markdown(f"#### {ui['audio_player_title']}")
-                st.audio(audio_track, format="audio/mp3")
+            mp4_video_bytes = generate_mp4_video(output_text, figma_images, lang=lang_key)
+            if mp4_video_bytes:
+                st.markdown(f"#### {ui['video_player_title']}")
+                st.video(mp4_video_bytes, format="video/mp4")
                 st.markdown("---")
+            else:
+                audio_track = extract_voiceover_and_synthesize_audio(output_text, lang=lang_key)
+                if audio_track:
+                    st.markdown(f"#### {ui['audio_player_title']}")
+                    st.audio(audio_track, format="audio/mp3")
+                    st.markdown("---")
                 
         # 🧠 Interactive Playable Quiz Engine
         if active_opt_idx == 6 and st.session_state.get("quiz_data"):
@@ -1018,12 +1217,12 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                 use_container_width=True
             )
             
-        # 2. PowerPoint (.pptx) Export (With Figma screenshots embedded on slides)
+        # 2. PowerPoint (.pptx) Export (Dark Blue Theme + White Font + 40%+ Visuals with ReqAssist mark)
         with col_d2:
             try:
                 ppt_json_text, _ = generate_resilient_content(
                     client_inst=client,
-                    contents=[f"Convert this deliverable into a structured presentation as a JSON array of slide objects with keys 'title', 'bullets' (list of strings), 'notes' (string). Keep text strictly in {lang_key}:\n\n{exportable_text}"],
+                    contents=[f"Convert this deliverable into a structured presentation as a JSON array of 6 to 10 slide objects with keys 'title', 'bullets' (list of strings), 'notes' (string). Keep text strictly in {lang_key}:\n\n{exportable_text}"],
                     response_mime_type="application/json"
                 )
                 slides_data = json.loads(ppt_json_text)
@@ -1061,15 +1260,31 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                     use_container_width=True
                 )
 
-        # 5. MP3 Voiceover Audio Clip Download for Demo Video
+        # 5. Direct MP4 Video and MP3 Audio Downloads for Demo Video
         if active_opt_idx == 3:
-            audio_bio = extract_voiceover_and_synthesize_audio(output_text, lang=lang_key)
-            if audio_bio:
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.download_button(
-                    label=ui["audio_btn"],
-                    data=audio_bio,
-                    file_name=f"ReqAssist_Demo_Voiceover_{user_name}.mp3",
-                    mime="audio/mp3",
-                    use_container_width=True
-                )
+            st.markdown("<br>", unsafe_allow_html=True)
+            col_v1, col_v2 = st.columns(2)
+            
+            # MP4 Video Download
+            with col_v1:
+                mp4_bytes = generate_mp4_video(output_text, figma_images, lang=lang_key)
+                if mp4_bytes:
+                    st.download_button(
+                        label=ui["mp4_btn"],
+                        data=mp4_bytes,
+                        file_name=f"ReqAssist_Demo_Walkthrough_{user_name}.mp4",
+                        mime="video/mp4",
+                        use_container_width=True
+                    )
+                    
+            # MP3 Audio Track Download
+            with col_v2:
+                audio_bio = extract_voiceover_and_synthesize_audio(output_text, lang=lang_key)
+                if audio_bio:
+                    st.download_button(
+                        label=ui["audio_btn"],
+                        data=audio_bio,
+                        file_name=f"ReqAssist_Demo_Voiceover_{user_name}.mp3",
+                        mime="audio/mp3",
+                        use_container_width=True
+                    )
