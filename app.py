@@ -13,23 +13,30 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 import io
 import json
+import re
 import streamlit as st
 import pandas as pd
 from docx import Document
 from pptx import Presentation
-from pptx.util import Pt
+from pptx.util import Inches, Pt
 from PIL import Image
 from google import genai
 from google.genai import types
 
-# Try importing pypdf for PDF reading
+# Optional PDF parsing
 try:
     import pypdf
 except ImportError:
     pypdf = None
 
+# Optional Text-to-Speech Audio Generation for Demo Video
+try:
+    from gtts import gTTS
+except ImportError:
+    gTTS = None
+
 # ---------------------------------------------------------
-# Configured Model Cascade (Gemini 3.x Flash Family)
+# Primary Model Cascade (Gemini 3.x Flash Family)
 # ---------------------------------------------------------
 MODEL_CASCADE = [
     "gemini-3.7-flash",       # ⭐ Best default (General AI, reasoning, coding)
@@ -87,7 +94,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Sidebar nowrap fix, standard buttons, prominent #051330 CTA button, and Dark Green Loaded badges
+# Custom CSS: Sidebar nowrap fix, standard buttons, prominent #051330 CTA button
 st.markdown("""
 <style>
     /* 1. Safe top & bottom padding */
@@ -236,27 +243,19 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* ---------------------------------------------------------
-       5. Visible Dark Green Text for Loaded Documents
-       --------------------------------------------------------- */
-    .doc-loaded-badge {
-        color: #15803d !important;            /* Visible Dark Green Text */
+    /* 5. Plain Text Upload Indicator (No button borders or background) */
+    .plain-upload-status {
+        color: #15803d !important;
         font-size: 14px !important;
-        font-weight: 700 !important;
+        font-weight: 600 !important;
         margin-top: 6px !important;
-        display: flex !important;
-        align-items: center !important;
-        gap: 6px !important;
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
     }
-    
-    .doc-loaded-badge code {
-        color: #166534 !important;            /* Deep Forest Green Text for filename */
-        background-color: #f0fdf4 !important; /* Very soft green tint */
-        border: 1.5px solid #86efac !important;/* Clean green border */
+    .plain-upload-filename {
+        color: #166534 !important;
         font-weight: 700 !important;
-        font-size: 13.5px !important;
-        padding: 3px 8px !important;
-        border-radius: 5px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -280,12 +279,15 @@ T = {
         "supported_formats_help": "Supported: .docx, .txt, .pdf, .xlsx, .csv, .xls",
         "step2_title": "⚡ STEP 2: Select & Generate Deliverable",
         "generate_btn": "✨ Generate Deliverable",
-        "tab_preview": "📄 Preview Output",
+        "tab_output": "📄 Output",
         "tab_download": "📥 Download Formatted Files",
         "docx_btn": "📄 Download Word (.docx)",
         "xlsx_btn": "📊 Download Test Cases (.xlsx)",
         "pptx_btn": "📊 Download Presentation (.pptx)",
         "md_btn": "📝 Download Markdown (.md)",
+        "audio_btn": "🎙️ Download Demo Voiceover (.mp3)",
+        "audio_player_title": "🎧 Generated Voiceover Audio Track (Listen & Download)",
+        "audio_info": "💡 Note on MP4 Video: Language models generate scripts/storyboards. Below is the generated Audio Voiceover clip ready for your slide deck or video editor.",
         "viewer_err": "🚫 Access Restricted: These options are restricted to BA & PM roles. Please contact your project PM or PO.",
         "popup_title": "⚠️ Missing Required Documents",
         "popup_msg": "ReqAssist strictly requires the following document(s) before generating this artifact. Please upload them in Step 1:",
@@ -315,12 +317,15 @@ T = {
         "supported_formats_help": "Formati supportati: .docx, .txt, .pdf, .xlsx, .csv, .xls",
         "step2_title": "⚡ PASSAGGIO 2: Seleziona & Genera Deliverable",
         "generate_btn": "✨ Genera Deliverable",
-        "tab_preview": "📄 Anteprima Output",
+        "tab_output": "📄 Output",
         "tab_download": "📥 Scarica File Formattati",
         "docx_btn": "📄 Scarica Documento Word (.docx)",
         "xlsx_btn": "📊 Scarica Test Case in Excel (.xlsx)",
         "pptx_btn": "📊 Scarica Presentazione (.pptx)",
         "md_btn": "📝 Scarica Markdown (.md)",
+        "audio_btn": "🎙️ Scarica Traccia Audio Demo (.mp3)",
+        "audio_player_title": "🎧 Traccia Audio Voiceover Generata (Ascolta & Scarica)",
+        "audio_info": "💡 Nota sui Video MP4: I modelli linguistici generano script e storyboard. Di seguito trovi la traccia audio voiceover (.mp3) pronta per la presentazione.",
         "viewer_err": "🚫 Accesso Limitato: Queste opzioni sono riservate a BA e PM. Contatta il PM o PO del progetto.",
         "popup_title": "⚠️ Documenti Obbligatori Mancanti",
         "popup_msg": "ReqAssist richiede obbligatoriamente i seguenti documenti prima di procedere. Caricali nel Passaggio 1:",
@@ -438,7 +443,7 @@ def parse_uploaded_file(uploaded_file) -> str:
         return f"Error reading {uploaded_file.name}: {str(e)}"
 
 # ---------------------------------------------------------
-# Helper Functions: Exporters (DOCX, PPTX, Multi-Sheet XLSX)
+# Helper Functions: Exporters (DOCX, PPTX with Images, Multi-Sheet XLSX, Audio)
 # ---------------------------------------------------------
 def create_docx(title: str, content: str) -> io.BytesIO:
     doc = Document()
@@ -457,23 +462,53 @@ def create_docx(title: str, content: str) -> io.BytesIO:
     bio.seek(0)
     return bio
 
-def create_pptx(slides_json: list) -> io.BytesIO:
+def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.BytesIO:
+    """Generates PowerPoint presentation embedding Figma UI screens alongside bullets & speaker notes."""
     prs = Presentation()
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+    
+    img_idx = 0
     for slide_data in slides_json:
-        slide = prs.slides.add_slide(prs.slide_layouts[1])
-        slide.shapes.title.text = slide_data.get("title", "Slide")
-        body_shape = slide.shapes.placeholders[1]
-        tf = body_shape.text_frame
-        tf.clear()
+        slide = prs.slides.add_slide(prs.slide_layouts[6]) # blank canvas layout
         
-        for bullet in slide_data.get("bullets", []):
-            p = tf.add_paragraph()
-            p.text = bullet
-            p.font.size = Pt(18)
+        # 1. Slide Title
+        title_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.5), Inches(11.7), Inches(0.8))
+        tf_title = title_box.text_frame
+        tf_title.word_wrap = True
+        p_title = tf_title.paragraphs[0]
+        p_title.text = slide_data.get("title", "Slide")
+        p_title.font.size = Pt(24)
+        p_title.font.bold = True
+        
+        # 2. Bullet Points (Left side if image exists, full width if no images)
+        has_images = figma_files and len(figma_files) > 0
+        text_width = Inches(6.2) if has_images else Inches(11.5)
+        
+        text_box = slide.shapes.add_textbox(Inches(0.8), Inches(1.5), text_width, Inches(5.2))
+        tf = text_box.text_frame
+        tf.word_wrap = True
+        
+        for idx, bullet in enumerate(slide_data.get("bullets", [])):
+            p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
+            p.text = f"• {bullet}"
+            p.font.size = Pt(16)
+            p.space_after = Pt(10)
             
+        # 3. Speaker Notes
         if "notes" in slide_data and slide_data["notes"]:
             notes_slide = slide.notes_slide
             notes_slide.notes_text_frame.text = slide_data["notes"]
+            
+        # 4. Embed Uploaded Figma Screen on Right Side
+        if has_images:
+            try:
+                chosen_img = figma_files[img_idx % len(figma_files)]
+                img_idx += 1
+                chosen_img.seek(0)
+                slide.shapes.add_picture(chosen_img, Inches(7.3), Inches(1.5), width=Inches(5.2))
+            except Exception:
+                pass
 
     bio = io.BytesIO()
     prs.save(bio)
@@ -481,7 +516,7 @@ def create_pptx(slides_json: list) -> io.BytesIO:
     return bio
 
 def parse_markdown_tables_to_excel(markdown_text: str) -> io.BytesIO:
-    """Parses multiple markdown tables from text into separate Excel sheets (Functional & Technical)."""
+    """Parses multiple markdown tables into separate Excel sheets (Functional & Technical)."""
     tables = []
     current_table = []
     in_table = False
@@ -519,8 +554,38 @@ def parse_markdown_tables_to_excel(markdown_text: str) -> io.BytesIO:
     bio.seek(0)
     return bio
 
+def extract_voiceover_and_synthesize_audio(markdown_text: str, lang: str = "en") -> io.BytesIO:
+    """Extracts voiceover scripts from Demo Video markdown and generates an MP3 audio track."""
+    if gTTS is None:
+        return None
+    try:
+        # Extract narration from voiceover column or paragraph text
+        lines = markdown_text.split("\n")
+        voiceover_lines = []
+        for line in lines:
+            if "|" in line:
+                parts = [p.strip() for p in line.split("|") if p.strip()]
+                if len(parts) >= 3 and not any(h in parts[-1].lower() for h in ["voiceover", "script", "---"]):
+                    voiceover_lines.append(parts[-1])
+            elif not line.startswith("#") and len(line.strip()) > 20:
+                voiceover_lines.append(line.strip())
+                
+        narration = " ".join(voiceover_lines)
+        narration = re.sub(r'[*_#`]', '', narration)  # Remove markdown formatting
+        
+        if len(narration.strip()) < 20:
+            narration = "Welcome to the product feature walkthrough generated by ReqAssist."
+            
+        tts = gTTS(text=narration[:4000], lang="it" if lang == "Italiano" else "en", slow=False)
+        audio_bio = io.BytesIO()
+        tts.write_to_fp(audio_bio)
+        audio_bio.seek(0)
+        return audio_bio
+    except Exception:
+        return None
+
 # ---------------------------------------------------------
-# STEP 1: Upload Source Materials (Dark Green Loaded Indicators)
+# STEP 1: Upload Source Materials (Clean, Plain-Text Indicators)
 # ---------------------------------------------------------
 ALLOWED_EXTENSIONS = ["docx", "txt", "md", "xlsx", "xls", "csv", "pdf"]
 
@@ -540,7 +605,7 @@ with st.container():
         raw_text = parse_uploaded_file(raw_file) if raw_file else ""
         if raw_file:
             st.markdown(
-                f"<div class='doc-loaded-badge'>✅ Loaded: <code>{raw_file.name}</code></div>", 
+                f"<div class='plain-upload-status'>✅ Loaded: <span class='plain-upload-filename'>{raw_file.name}</span></div>", 
                 unsafe_allow_html=True
             )
 
@@ -556,7 +621,7 @@ with st.container():
         excel_summary = parse_uploaded_file(excel_file) if excel_file else ""
         if excel_file:
             st.markdown(
-                f"<div class='doc-loaded-badge'>✅ Loaded: <code>{excel_file.name}</code></div>", 
+                f"<div class='plain-upload-status'>✅ Loaded: <span class='plain-upload-filename'>{excel_file.name}</span></div>", 
                 unsafe_allow_html=True
             )
 
@@ -571,7 +636,7 @@ with st.container():
         )
         if figma_images:
             st.markdown(
-                f"<div class='doc-loaded-badge'>✅ Loaded: <code>{len(figma_images)} screen(s)</code></div>", 
+                f"<div class='plain-upload-status'>✅ Loaded: <span class='plain-upload-filename'>{len(figma_images)} screen(s)</span></div>", 
                 unsafe_allow_html=True
             )
 
@@ -656,32 +721,45 @@ You MUST respond ENTIRELY and STRICTLY in {lang_key}. All headings, titles, desc
 3. EXPLICIT ASSUMPTION FLAGGING: If an assumption is forced, tag it clearly as '[ASSUMPTION: ...]' (or '[ASSUNZIONE: ...]' if Italian).
 4. UNKNOWN DATA: If detail is missing, state: "{'⚠️ Questo dettaglio non è specificato nei documenti forniti. Si prega di consultare il PM/PO.' if lang_key == 'Italiano' else '⚠️ This detail is not specified in the provided documents. Please consult your PM/PO.'}"
 
-[OUTPUT TEMPLATES]
+[ENHANCED OUTPUT TEMPLATES]
 
 - Acceptance Criteria:
-  Generate in TWO distinct, clearly separated sections:
+  Generate in TWO distinct, comprehensive sections with HIGH VOLUME of criteria:
   ## {'1. Criteri di Accettazione Funzionali' if lang_key == 'Italiano' else '1. Functional Acceptance Criteria'}
-  - Written in BDD format (DATO/QUANDO/ALLORA or GIVEN/WHEN/THEN) grouped by User Story.
-  - Covers end-user workflows, business logic, UI validations, edge states, and user permissions.
+  - Written strictly in BDD format ({'DATO / QUANDO / ALLORA' if lang_key == 'Italiano' else 'GIVEN / WHEN / THEN'}).
+  - Must generate an extensive, granular set of criteria covering: Positive Happy Paths, Form Input Validations, Mandatory Fields, Optional Fields, Error Messages, Edge Cases, Empty States, and User Roles/Permissions.
   
   ## {'2. Criteri di Accettazione Tecnici' if lang_key == 'Italiano' else '2. Technical Acceptance Criteria'}
-  - Covers API contracts (request/response schemas, HTTP codes), database state changes, authentication/tokens, performance thresholds (response latency), and error handling/logging.
+  - MUST ALSO be written strictly in BDD format ({'DATO / QUANDO / ALLORA' if lang_key == 'Italiano' else 'GIVEN / WHEN / THEN'}).
+  - Covers API Payload Contracts (200 OK, 400 Bad Request, 401/403 Auth, 500), Database Record Commit & Rollback, Token Header Validation, Response Latency Limits (<500ms), and Structured Error Logging.
 
 - Test Cases:
-  Generate in TWO distinct, clearly separated sections each containing its own complete Markdown table:
+  Generate in TWO distinct Markdown tables with maximum coverage:
+  - Increase the number of test cases significantly. Every single field from the validation sheet must have individual positive, negative, and boundary test cases.
+  - Plain text formatting only (no badges/buttons). Include a dedicated Remarks / Note column.
+  
   ## {'1. Casi di Test Funzionali' if lang_key == 'Italiano' else '1. Functional Test Cases'}
-  - Markdown Table with columns:
-    | {'ID Test' if lang_key == 'Italiano' else 'Test Case ID'} | {'User Story / Modulo' if lang_key == 'Italiano' else 'User Story / Feature'} | {'Scenario' if lang_key == 'Italiano' else 'Scenario'} | {'Pre-condizioni' if lang_key == 'Italiano' else 'Pre-conditions'} | {'Passaggi di Test' if lang_key == 'Italiano' else 'Test Steps'} | {'Risultato Atteso' if lang_key == 'Italiano' else 'Expected Result'} | {'Validazione Campo' if lang_key == 'Italiano' else 'Field Validation Check'} | {'Tipo di Test (Positivo/Negativo/Edge)' if lang_key == 'Italiano' else 'Test Type (Positive/Negative/Edge)'} |
+  | {'ID Test' if lang_key == 'Italiano' else 'Test Case ID'} | {'Campo / Modulo' if lang_key == 'Italiano' else 'Field / Feature Name'} | {'Scenario di Test' if lang_key == 'Italiano' else 'Test Scenario'} | {'Pre-condizioni' if lang_key == 'Italiano' else 'Pre-conditions'} | {'Passaggi di Esecuzione' if lang_key == 'Italiano' else 'Execution Steps'} | {'Risultato Atteso' if lang_key == 'Italiano' else 'Expected Result'} | {'Validazione Campo' if lang_key == 'Italiano' else 'Field Validation Rule'} | {'Tipo (Positivo/Negativo/Edge)' if lang_key == 'Italiano' else 'Test Type (Positive/Negative/Edge)'} | {'Note / Osservazioni' if lang_key == 'Italiano' else 'Remarks / Notes'} |
   
   ## {'2. Casi di Test Tecnici e Integrazione' if lang_key == 'Italiano' else '2. Technical & Integration Test Cases'}
-  - Markdown Table with columns:
-    | {'ID Test Tecnico' if lang_key == 'Italiano' else 'Tech Test ID'} | {'Componente / Endpoint' if lang_key == 'Italiano' else 'Component / Endpoint'} | {'Scenario Tecnico' if lang_key == 'Italiano' else 'Technical Scenario'} | {'Prerequisiti' if lang_key == 'Italiano' else 'Prerequisites'} | {'Esecuzione / Payload' if lang_key == 'Italiano' else 'Execution / Payload'} | {'Risposta Attesa & Stato DB' if lang_key == 'Italiano' else 'Expected Response & DB State'} | {'Metodo di Verifica (API/DB/Logs)' if lang_key == 'Italiano' else 'Verification Method (API/DB/Logs)'} |
+  | {'ID Test Tecnico' if lang_key == 'Italiano' else 'Tech Test ID'} | {'Componente / Endpoint' if lang_key == 'Italiano' else 'Component / Endpoint'} | {'Scenario Tecnico' if lang_key == 'Italiano' else 'Technical Scenario'} | {'Prerequisiti' if lang_key == 'Italiano' else 'Prerequisites'} | {'Payload / Request' if lang_key == 'Italiano' else 'Payload / Request'} | {'Risposta Attesa & Stato DB' if lang_key == 'Italiano' else 'Expected Response & DB State'} | {'Metodo di Verifica' if lang_key == 'Italiano' else 'Verification Method'} | {'Note / Osservazioni' if lang_key == 'Italiano' else 'Remarks / Notes'} |
 
-- Detailed Functional Analysis: MS Word structure with H2 and H3 headings.
-- Demo Video: Markdown Table with columns: | Timestamp | UI Screen / Area | Visual Action | Voiceover Script |
-- PPT Slides: 5 to 10 slides maximum (Title, Visual Reference, Bullet Points, Speaker Notes).
-- FAQs: Split into Developer Technical FAQs and Stakeholder Business FAQs.
-- Quiz: 7 to 12 Multiple-Choice Questions (10 ideal) with complete Answer Key at the end.
+- Detailed Functional Analysis:
+  - Explain the complete, end-to-end user journey in detailed, flowing **PARAGRAPHS ONLY** (avoid sparse bullet lists).
+  - Reference the uploaded Figma UI screens, layout sections, step-by-step navigation, state transitions, validation triggers, and system responses in depth.
+
+- Demo Video:
+  - Formatted as a complete video production storyboard with a Markdown table:
+  | {'Timestamp' if lang_key == 'Italiano' else 'Timestamp'} | {'Schermata / UI Area' if lang_key == 'Italiano' else 'UI Screen / Area'} | {'Azione Visiva' if lang_key == 'Italiano' else 'Visual Action'} | {'Script Voiceover (Voce Narrante)' if lang_key == 'Italiano' else 'Voiceover Script (Narrator)'} |
+
+- PPT Slides (5 to 10 slides):
+  - Structured for executive review with Slide Title, Bullets, Figma visual reference tag, and full Speaker Notes.
+
+- FAQs:
+  - Clean, plain text Markdown format (no button or box structures). Group into Developer Technical FAQs and Stakeholder Business FAQs.
+
+- Quiz:
+  - Clean, plain text Multiple-Choice Questions (10 questions) with Answer Key and rationale at the end (no button or badge structures).
 """
 
         user_content = f"""
@@ -719,7 +797,7 @@ Generate the complete artifact strictly adhering to the requested templates and 
             st.error(f"Error during generation: {str(e)}")
 
 # ---------------------------------------------------------
-# Output Display & Direct Exports (.docx, .pptx, .md, .xlsx)
+# Output Display & Direct Exports (.docx, .pptx, .md, .xlsx, .mp3)
 # ---------------------------------------------------------
 if "generated_output" in st.session_state and st.session_state["generated_output"]:
     output_text = st.session_state["generated_output"]
@@ -727,9 +805,18 @@ if "generated_output" in st.session_state and st.session_state["generated_output
     active_opt_idx = st.session_state.get("generated_idx", current_idx)
 
     st.markdown("---")
-    tab_prev, tab_down = st.tabs([ui["tab_preview"], ui["tab_download"]])
+    tab_out, tab_down = st.tabs([ui["tab_output"], ui["tab_download"]])
     
-    with tab_prev:
+    with tab_out:
+        # If Demo Video was generated, provide direct in-app voiceover audio player
+        if active_opt_idx == 3:
+            st.info(ui["audio_info"])
+            audio_track = extract_voiceover_and_synthesize_audio(output_text, lang=lang_key)
+            if audio_track:
+                st.markdown(f"#### {ui['audio_player_title']}")
+                st.audio(audio_track, format="audio/mp3")
+                st.markdown("---")
+                
         st.markdown(output_text)
         
     with tab_down:
@@ -747,7 +834,7 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                 use_container_width=True
             )
             
-        # 2. PowerPoint (.pptx) Export
+        # 2. PowerPoint (.pptx) Export (With Figma screenshots embedded on slides)
         with col_d2:
             try:
                 ppt_json_text, _ = generate_resilient_content(
@@ -756,7 +843,7 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                     response_mime_type="application/json"
                 )
                 slides_data = json.loads(ppt_json_text)
-                pptx_bio = create_pptx(slides_data)
+                pptx_bio = create_pptx_with_images(slides_data, figma_files=figma_images if figma_images else None)
                 st.download_button(
                     label=ui["pptx_btn"],
                     data=pptx_bio,
@@ -765,7 +852,7 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                     use_container_width=True
                 )
             except Exception:
-                st.info("Direct Markdown available below.")
+                st.info("Direct Markdown download available below.")
 
         # 3. Markdown (.md) Export
         with col_d3:
@@ -787,5 +874,18 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                     data=excel_bio,
                     file_name=f"ReqAssist_TestCases_{user_name}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
+        # 5. MP3 Voiceover Audio Clip Download for Demo Video
+        if active_opt_idx == 3:
+            audio_bio = extract_voiceover_and_synthesize_audio(output_text, lang=lang_key)
+            if audio_bio:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.download_button(
+                    label=ui["audio_btn"],
+                    data=audio_bio,
+                    file_name=f"ReqAssist_Demo_Voiceover_{user_name}.mp3",
+                    mime="audio/mp3",
                     use_container_width=True
                 )
