@@ -486,6 +486,27 @@ def parse_uploaded_file(uploaded_file) -> str:
         return f"Error reading {uploaded_file.name}: {str(e)}"
 
 # ---------------------------------------------------------
+# Helper Functions: Word DOCX Exporter
+# ---------------------------------------------------------
+def create_docx(title: str, content: str) -> io.BytesIO:
+    """Creates a well-formatted MS Word document (.docx) from markdown text."""
+    doc = Document()
+    doc.add_heading(title, 0)
+    for line in content.split("\n"):
+        if line.startswith("## "):
+            doc.add_heading(line.replace("## ", ""), level=1)
+        elif line.startswith("### "):
+            doc.add_heading(line.replace("### ", ""), level=2)
+        elif line.startswith("* ") or line.startswith("- "):
+            doc.add_paragraph(line[2:], style="List Bullet")
+        elif line.strip():
+            doc.add_paragraph(line)
+    bio = io.BytesIO()
+    doc.save(bio)
+    bio.seek(0)
+    return bio
+
+# ---------------------------------------------------------
 # Context-Aware AI Diagram Engine for PowerPoint & Video
 # ---------------------------------------------------------
 def generate_contextual_ai_slide_diagram(slide_title: str, bullets: list) -> io.BytesIO:
@@ -511,17 +532,14 @@ def generate_contextual_ai_slide_diagram(slide_title: str, bullets: list) -> io.
 
     # Context 1: API / Endpoints / Integration
     if any(k in combined_text for k in ["api", "endpoint", "payload", "http", "contract", "json"]):
-        # Box 1
         draw.rounded_rectangle([65, 175, 415, 480], radius=12, fill=(10, 25, 55), outline=(245, 102, 66), width=2)
         draw.text((85, 205), "REQUEST / PAYLOAD", fill=(245, 102, 66))
         draw.text((85, 250), f"• Ingest: {b1_text[:30]}\n• Headers & Tokens\n• JSON Schema Guard", fill=(226, 232, 240))
         
-        # Box 2
         draw.rounded_rectangle([455, 175, 825, 480], radius=12, fill=(10, 25, 55), outline=(34, 197, 94), width=2)
         draw.text((475, 205), "INTEGRATION SERVICE", fill=(34, 197, 94))
         draw.text((475, 250), f"• Logic: {b2_text[:30]}\n• Data Validation Rules\n• Subsystem Routing", fill=(226, 232, 240))
         
-        # Box 3
         draw.rounded_rectangle([865, 175, 1215, 480], radius=12, fill=(10, 25, 55), outline=(168, 85, 247), width=2)
         draw.text((885, 205), "RESPONSE CODES", fill=(192, 132, 252))
         draw.text((885, 250), f"• Result: {b3_text[:30]}\n• 200 OK / 400 Bad Request\n• Audit Event Telemetry", fill=(226, 232, 240))
