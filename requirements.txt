@@ -1,8 +1,11 @@
 streamlit
 google-genai
+pandas
 python-docx
 python-pptx
-pandas
-openpyxl
 pillow
-requests
+pypdf
+gTTS
+moviepy
+imageio-ffmpeg
+openpyxl
