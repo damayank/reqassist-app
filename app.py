@@ -36,7 +36,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Sidebar nowrap fix, standard buttons, and prominent #10347d CTA button
+# Custom CSS: Sidebar nowrap fix, standard buttons, and prominent #051330 CTA button
 st.markdown("""
 <style>
     /* 1. Safe top & bottom padding */
@@ -101,8 +101,8 @@ st.markdown("""
         color: #0f172a !important;
     }
 
-    /* Active / Selected Option Buttons */
-    div.stButton > button[kind="primary"] {
+    /* Active / Selected Option Buttons (Excluding the main generate button) */
+    div.stButton:not(.st-key-main_generate_btn) > button[kind="primary"] {
         background-color: #2563eb !important;
         color: #ffffff !important;
         border: 1.5px solid #1d4ed8 !important;
@@ -135,36 +135,41 @@ st.markdown("""
     }
 
     /* ---------------------------------------------------------
-       4. Primary Action Button: #10347d (Dark Blue) -> #f56642 (Hover/Click)
+       4. Primary Action Button: #051330 (Dark Blue) -> #f56642 (Hover/Click)
           +15% larger size (56px height, 18px text, 34px padding)
        --------------------------------------------------------- */
-    div.st-key-main_generate_btn button {
-        background-color: #10347d !important;   /* Target Dark Blue */
+    .st-key-main_generate_btn button,
+    .st-key-main_generate_btn button[kind="primary"],
+    div[data-testid="stButton"].st-key-main_generate_btn > button,
+    div[data-testid="stButton"].st-key-main_generate_btn > button[kind="primary"] {
+        background-color: #051330 !important;   /* Shade: #051330 */
         color: #ffffff !important;
-        border: 1px solid #10347d !important;
-        font-size: 18px !important;            /* +15% font enlargement */
+        border: 1px solid #051330 !important;
+        font-size: 18px !important;            /* +15% font size */
         font-weight: 700 !important;
-        height: 56px !important;               /* +15% height enlargement */
+        height: 56px !important;               /* +15% height */
         min-height: 56px !important;
         max-height: 56px !important;
         padding: 0 34px !important;
         border-radius: 8px !important;
-        box-shadow: 0 4px 16px rgba(16, 52, 125, 0.35) !important;
+        box-shadow: 0 4px 16px rgba(5, 19, 48, 0.45) !important;
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
 
-    div.st-key-main_generate_btn button p,
-    div.st-key-main_generate_btn button div,
-    div.st-key-main_generate_btn button span {
+    .st-key-main_generate_btn button p,
+    .st-key-main_generate_btn button div,
+    .st-key-main_generate_btn button span {
         color: #ffffff !important;
         font-weight: 700 !important;
         font-size: 18px !important;
     }
 
-    /* Hover & Active / Clicked State */
-    div.st-key-main_generate_btn button:hover,
-    div.st-key-main_generate_btn button:active,
-    div.st-key-main_generate_btn button:focus:active {
+    /* Hover & Active / Clicked State: #f56642 */
+    .st-key-main_generate_btn button:hover,
+    .st-key-main_generate_btn button:active,
+    .st-key-main_generate_btn button:focus:active,
+    div[data-testid="stButton"].st-key-main_generate_btn > button:hover,
+    div[data-testid="stButton"].st-key-main_generate_btn > button:active {
         background-color: #f56642 !important;   /* Hover / Click: #f56642 */
         border-color: #f56642 !important;
         color: #ffffff !important;
@@ -172,19 +177,19 @@ st.markdown("""
         box-shadow: 0 8px 24px rgba(245, 102, 66, 0.45) !important;
     }
 
-    div.st-key-main_generate_btn button:hover p,
-    div.st-key-main_generate_btn button:hover div,
-    div.st-key-main_generate_btn button:hover span,
-    div.st-key-main_generate_btn button:active p,
-    div.st-key-main_generate_btn button:active div,
-    div.st-key-main_generate_btn button:active span {
+    .st-key-main_generate_btn button:hover p,
+    .st-key-main_generate_btn button:hover div,
+    .st-key-main_generate_btn button:hover span,
+    .st-key-main_generate_btn button:active p,
+    .st-key-main_generate_btn button:active div,
+    .st-key-main_generate_btn button:active span {
         color: #ffffff !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# UI Dictionary (English & Italiano Only - No Number Icons)
+# UI Dictionary (English & Italiano Only - Clean Button Names)
 # ---------------------------------------------------------
 T = {
     "English": {
@@ -360,7 +365,7 @@ def parse_uploaded_file(uploaded_file) -> str:
         return f"Error reading {uploaded_file.name}: {str(e)}"
 
 # ---------------------------------------------------------
-# Helper Functions: Exporters (DOCX, PPTX, XLSX)
+# Helper Functions: Exporters (DOCX, PPTX, Multi-Sheet XLSX)
 # ---------------------------------------------------------
 def create_docx(title: str, content: str) -> io.BytesIO:
     doc = Document()
@@ -402,23 +407,44 @@ def create_pptx(slides_json: list) -> io.BytesIO:
     bio.seek(0)
     return bio
 
-def parse_markdown_table_to_excel(markdown_text: str) -> io.BytesIO:
-    lines = [line.strip() for line in markdown_text.split("\n") if line.strip().startswith("|")]
-    if len(lines) >= 3:
-        headers = [c.strip() for c in lines[0].split("|")[1:-1]]
-        data = []
-        for line in lines[2:]:
-            row = [c.strip() for c in line.split("|")[1:-1]]
-            if len(row) == len(headers):
-                data.append(row)
-        if data:
-            df = pd.DataFrame(data, columns=headers)
-            bio = io.BytesIO()
-            with pd.ExcelWriter(bio, engine="openpyxl") as writer:
-                df.to_excel(writer, index=False, sheet_name="Test Cases")
-            bio.seek(0)
-            return bio
-    return None
+def parse_markdown_tables_to_excel(markdown_text: str) -> io.BytesIO:
+    """Parses multiple markdown tables from text into separate Excel sheets (e.g. Functional & Technical)."""
+    tables = []
+    current_table = []
+    in_table = False
+    
+    for line in markdown_text.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("|") and stripped.endswith("|"):
+            current_table.append(stripped)
+            in_table = True
+        else:
+            if in_table and len(current_table) >= 3:
+                tables.append(current_table)
+            current_table = []
+            in_table = False
+    if in_table and len(current_table) >= 3:
+        tables.append(current_table)
+        
+    if not tables:
+        return None
+        
+    bio = io.BytesIO()
+    with pd.ExcelWriter(bio, engine="openpyxl") as writer:
+        sheet_labels = ["Functional Test Cases", "Technical Test Cases"]
+        for idx, tbl_lines in enumerate(tables):
+            headers = [c.strip() for c in tbl_lines[0].split("|")[1:-1]]
+            data = []
+            for row_line in tbl_lines[2:]:
+                row = [c.strip() for c in row_line.split("|")[1:-1]]
+                if len(row) == len(headers):
+                    data.append(row)
+            if data:
+                df = pd.DataFrame(data, columns=headers)
+                sname = sheet_labels[idx] if idx < len(sheet_labels) else f"Test Cases Part {idx+1}"
+                df.to_excel(writer, index=False, sheet_name=sname[:31])
+    bio.seek(0)
+    return bio
 
 # ---------------------------------------------------------
 # STEP 1: Upload Source Materials
@@ -470,7 +496,7 @@ with st.container():
 st.markdown("---")
 
 # ---------------------------------------------------------
-# STEP 2: Deliverable Selection (Clean Names without numbers)
+# STEP 2: Deliverable Selection
 # ---------------------------------------------------------
 st.markdown(f"### {ui['step2_title']}")
 
@@ -514,9 +540,8 @@ if needs_figma and not figma_images:
     missing_core_items.append(ui["figma_title"])
 
 # ---------------------------------------------------------
-# Centered, Prominent #10347d Action Button (Positioned at Bottom)
+# Centered, Prominent #051330 Action Button (Positioned at Bottom)
 # ---------------------------------------------------------
-# Generous vertical space to position the button near the bottom of the screen
 st.markdown("<div style='margin-top: 4.5rem; margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
 
 col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
@@ -550,8 +575,26 @@ You MUST respond ENTIRELY and STRICTLY in {lang_key}. All headings, titles, desc
 4. UNKNOWN DATA: If detail is missing, state: "{'⚠️ Questo dettaglio non è specificato nei documenti forniti. Si prega di consultare il PM/PO.' if lang_key == 'Italiano' else '⚠️ This detail is not specified in the provided documents. Please consult your PM/PO.'}"
 
 [OUTPUT TEMPLATES]
-- Acceptance Criteria: BDD format (GIVEN/WHEN/THEN or DATO/QUANDO/ALLORA) grouped by User Story.
-- Test Cases: Markdown Table with columns: | Test Case ID | Scenario | Pre-conditions | Test Steps | Expected Result | Field Validation Check | Functional Test case or Technical Test case |
+
+- Acceptance Criteria:
+  Generate in TWO distinct, clearly separated sections:
+  ## {'1. Criteri di Accettazione Funzionali' if lang_key == 'Italiano' else '1. Functional Acceptance Criteria'}
+  - Written in BDD format (DATO/QUANDO/ALLORA or GIVEN/WHEN/THEN) grouped by User Story.
+  - Covers end-user workflows, business logic, UI validations, edge states, and user permissions.
+  
+  ## {'2. Criteri di Accettazione Tecnici' if lang_key == 'Italiano' else '2. Technical Acceptance Criteria'}
+  - Covers API contracts (request/response schemas, HTTP codes), database state changes, authentication/tokens, performance thresholds (response latency), and error handling/logging.
+
+- Test Cases:
+  Generate in TWO distinct, clearly separated sections each containing its own complete Markdown table:
+  ## {'1. Casi di Test Funzionali' if lang_key == 'Italiano' else '1. Functional Test Cases'}
+  - Markdown Table with columns:
+    | {'ID Test' if lang_key == 'Italiano' else 'Test Case ID'} | {'User Story / Modulo' if lang_key == 'Italiano' else 'User Story / Feature'} | {'Scenario' if lang_key == 'Italiano' else 'Scenario'} | {'Pre-condizioni' if lang_key == 'Italiano' else 'Pre-conditions'} | {'Passaggi di Test' if lang_key == 'Italiano' else 'Test Steps'} | {'Risultato Atteso' if lang_key == 'Italiano' else 'Expected Result'} | {'Validazione Campo' if lang_key == 'Italiano' else 'Field Validation Check'} | {'Tipo di Test (Positivo/Negativo/Edge)' if lang_key == 'Italiano' else 'Test Type (Positive/Negative/Edge)'} |
+  
+  ## {'2. Casi di Test Tecnici e Integrazione' if lang_key == 'Italiano' else '2. Technical & Integration Test Cases'}
+  - Markdown Table with columns:
+    | {'ID Test Tecnico' if lang_key == 'Italiano' else 'Tech Test ID'} | {'Componente / Endpoint' if lang_key == 'Italiano' else 'Component / Endpoint'} | {'Scenario Tecnico' if lang_key == 'Italiano' else 'Technical Scenario'} | {'Prerequisiti' if lang_key == 'Italiano' else 'Prerequisites'} | {'Esecuzione / Payload' if lang_key == 'Italiano' else 'Execution / Payload'} | {'Risposta Attesa & Stato DB' if lang_key == 'Italiano' else 'Expected Response & DB State'} | {'Metodo di Verifica (API/DB/Logs)' if lang_key == 'Italiano' else 'Verification Method (API/DB/Logs)'} |
+
 - Detailed Functional Analysis: MS Word structure with H2 and H3 headings.
 - Demo Video: Markdown Table with columns: | Timestamp | UI Screen / Area | Visual Action | Voiceover Script |
 - PPT Slides: 5 to 10 slides maximum (Title, Visual Reference, Bullet Points, Speaker Notes).
@@ -658,9 +701,9 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                 use_container_width=True
             )
             
-        # 4. Optional Excel (.xlsx) Export for Test Cases
+        # 4. Excel (.xlsx) Multi-Sheet Export for Test Cases
         if active_opt_idx == 1:
-            excel_bio = parse_markdown_table_to_excel(output_text)
+            excel_bio = parse_markdown_tables_to_excel(output_text)
             if excel_bio:
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.download_button(
