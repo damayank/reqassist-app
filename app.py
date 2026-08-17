@@ -1,5 +1,6 @@
 import os
 import ssl
+import time
 import urllib3
 
 # Disable SSL verification for corporate proxy/firewall
@@ -21,16 +22,61 @@ from PIL import Image
 from google import genai
 from google.genai import types
 
-# ---------------------------------------------------------
-# Primary Model Configuration
-# ---------------------------------------------------------
-MODEL_NAME = "gemini-3.6-flash"
-
 # Try importing pypdf for PDF reading
 try:
     import pypdf
 except ImportError:
     pypdf = None
+
+# ---------------------------------------------------------
+# Configured Model Cascade (Gemini 3.x Flash Family)
+# ---------------------------------------------------------
+MODEL_CASCADE = [
+    "gemini-3.7-flash",       # ⭐ Best default (General AI, reasoning, coding)
+    "gemini-3.6-flash",       # ⭐ Fast general-purpose tasks
+    "gemini-3.5-flash",       # General-purpose AI
+    "gemini-3.5-flash-lite",  # 💰 Cost-focused, high volume
+    "gemini-3.1-flash-lite"   # Lightweight fallback
+]
+
+def generate_resilient_content(client_inst, contents, system_prompt="", response_mime_type=None, max_retries=2):
+    """
+    Executes generation with auto-retry and cascading fallback across
+    the requested Gemini 3.x Flash model series.
+    """
+    config_args = {"temperature": 0.2}
+    if system_prompt:
+        config_args["system_instruction"] = system_prompt
+    if response_mime_type:
+        config_args["response_mime_type"] = response_mime_type
+    
+    config = types.GenerateContentConfig(**config_args)
+    last_err = None
+
+    for model_name in MODEL_CASCADE:
+        for attempt in range(max_retries):
+            try:
+                resp = client_inst.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=config
+                )
+                if resp and resp.text:
+                    return resp.text, model_name
+            except Exception as e:
+                err_str = str(e).lower()
+                last_err = e
+                # Transient overload / rate limit / 503 -> wait and retry
+                if any(code in err_str for code in ["503", "unavailable", "demand", "429", "quota", "resource_exhausted"]):
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                # If model is not found on current tier -> switch to next model in list immediately
+                elif "404" in err_str or "not found" in err_str:
+                    break
+                else:
+                    time.sleep(1.0)
+                    
+    raise last_err
 
 # ---------------------------------------------------------
 # Page Configuration & Visual Theme
@@ -41,7 +87,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Sidebar nowrap fix, standard buttons, and prominent #051330 CTA button with BIG text
+# Custom CSS: Sidebar nowrap fix, standard buttons, prominent #051330 CTA button, and Dark Green Loaded badges
 st.markdown("""
 <style>
     /* 1. Safe top & bottom padding */
@@ -60,7 +106,7 @@ st.markdown("""
         padding-bottom: 0.4rem !important;
     }
 
-    /* 3. Universal Secondary Button Styling: Light theme & standard compact height (38px) */
+    /* 3. Universal Secondary Button Styling: Light theme & compact height (38px) */
     div.stButton > button {
         width: 100% !important;
         height: 38px !important;
@@ -106,7 +152,7 @@ st.markdown("""
         color: #0f172a !important;
     }
 
-    /* Active / Selected Option Buttons (Excluding the main generate button) */
+    /* Active / Selected Option Buttons */
     div.stButton:not(.st-key-main_generate_btn) > button[kind="primary"] {
         background-color: #2563eb !important;
         color: #ffffff !important;
@@ -190,24 +236,27 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* 5. Darker, crisp font for uploaded file badges */
+    /* ---------------------------------------------------------
+       5. Visible Dark Green Text for Loaded Documents
+       --------------------------------------------------------- */
     .doc-loaded-badge {
-        color: #0f172a !important;
-        font-size: 13.5px !important;
-        font-weight: 600 !important;
+        color: #15803d !important;            /* Visible Dark Green Text */
+        font-size: 14px !important;
+        font-weight: 700 !important;
         margin-top: 6px !important;
         display: flex !important;
         align-items: center !important;
-        gap: 4px !important;
+        gap: 6px !important;
     }
     
     .doc-loaded-badge code {
-        color: #0f172a !important;
-        background-color: #e2e8f0 !important;
-        font-weight: 600 !important;
-        padding: 2px 6px !important;
-        border-radius: 4px !important;
-        border: 1px solid #cbd5e1 !important;
+        color: #166534 !important;            /* Deep Forest Green Text for filename */
+        background-color: #f0fdf4 !important; /* Very soft green tint */
+        border: 1.5px solid #86efac !important;/* Clean green border */
+        font-weight: 700 !important;
+        font-size: 13.5px !important;
+        padding: 3px 8px !important;
+        border-radius: 5px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -471,7 +520,7 @@ def parse_markdown_tables_to_excel(markdown_text: str) -> io.BytesIO:
     return bio
 
 # ---------------------------------------------------------
-# STEP 1: Upload Source Materials
+# STEP 1: Upload Source Materials (Dark Green Loaded Indicators)
 # ---------------------------------------------------------
 ALLOWED_EXTENSIONS = ["docx", "txt", "md", "xlsx", "xls", "csv", "pdf"]
 
@@ -592,7 +641,7 @@ if generate_clicked:
         show_missing_data_popup(missing_core_items)
         st.stop()
 
-    with st.spinner(f"ReqAssist is generating ({lang_key}) using {MODEL_NAME}..."):
+    with st.spinner(f"ReqAssist is generating ({lang_key})..."):
         
         system_prompt = f"""
 [ROLE & PERSONA]
@@ -655,23 +704,19 @@ Generate the complete artifact strictly adhering to the requested templates and 
                 contents.append(Image.open(img))
 
         try:
-            response = client.models.generate_content(
-                model=MODEL_NAME,
+            output_text, model_used = generate_resilient_content(
+                client_inst=client,
                 contents=contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=0.2
-                )
+                system_prompt=system_prompt
             )
             
-            output_text = response.text
             st.session_state["generated_output"] = output_text
             st.session_state["generated_option"] = current_option
             st.session_state["generated_idx"] = current_idx
-            st.success("🎉 Generation Complete!")
+            st.success(f"🎉 Generation Complete! (Powered by {model_used})")
 
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(f"Error during generation: {str(e)}")
 
 # ---------------------------------------------------------
 # Output Display & Direct Exports (.docx, .pptx, .md, .xlsx)
@@ -704,13 +749,13 @@ if "generated_output" in st.session_state and st.session_state["generated_output
             
         # 2. PowerPoint (.pptx) Export
         with col_d2:
-            ppt_parser = client.models.generate_content(
-                model=MODEL_NAME,
-                contents=[f"Convert this deliverable into a structured presentation as a JSON array of slide objects with keys 'title', 'bullets' (list of strings), 'notes' (string). Keep text strictly in {lang_key}:\n\n{output_text}"],
-                config=types.GenerateContentConfig(response_mime_type="application/json")
-            )
             try:
-                slides_data = json.loads(ppt_parser.text)
+                ppt_json_text, _ = generate_resilient_content(
+                    client_inst=client,
+                    contents=[f"Convert this deliverable into a structured presentation as a JSON array of slide objects with keys 'title', 'bullets' (list of strings), 'notes' (string). Keep text strictly in {lang_key}:\n\n{output_text}"],
+                    response_mime_type="application/json"
+                )
+                slides_data = json.loads(ppt_json_text)
                 pptx_bio = create_pptx(slides_data)
                 st.download_button(
                     label=ui["pptx_btn"],
