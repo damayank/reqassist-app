@@ -36,13 +36,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Sidebar nowrap fix, standard secondary buttons, and prominent #1b2870 CTA button
+# Custom CSS: Sidebar nowrap fix, standard buttons, and prominent #203985 -> #f56642 CTA button
 st.markdown("""
 <style>
-    /* 1. Safe top padding */
+    /* 1. Safe top & bottom padding */
     .block-container {
         padding-top: 3.5rem !important;
-        padding-bottom: 2.5rem !important;
+        padding-bottom: 4rem !important;
     }
     
     /* 2. Prevent Sidebar title from wrapping in Italian */
@@ -94,7 +94,7 @@ st.markdown("""
         color: inherit !important;
     }
 
-    /* Hover State for Inactive Buttons */
+    /* Hover State for Inactive Selection Buttons */
     div.stButton > button:hover {
         background-color: #f1f5f9 !important;
         border-color: #94a3b8 !important;
@@ -134,39 +134,51 @@ st.markdown("""
         border-radius: 2px !important;
     }
 
-    /* 4. Main Action Button: #1b2870, larger size (48px), prominent styling */
+    /* ---------------------------------------------------------
+       4. Primary Action Button: #203985 (Default) -> #f56642 (Hover/Click)
+          +15% larger size (56px height, 18px text, generous padding)
+       --------------------------------------------------------- */
     div.st-key-main_generate_btn button {
-        background-color: #1b2870 !important;   /* Custom #1b2870 */
+        background-color: #203985 !important;   /* Default State: #203985 */
         color: #ffffff !important;
-        border: 1px solid #1b2870 !important;
-        font-size: 16px !important;            /* Larger font */
-        font-weight: 600 !important;
-        height: 48px !important;               /* Taller than 38px */
-        min-height: 48px !important;
-        max-height: 48px !important;
-        padding: 0 28px !important;
+        border: 1px solid #203985 !important;
+        font-size: 18px !important;            /* +15% font enlargement */
+        font-weight: 700 !important;
+        height: 56px !important;               /* +15% height enlargement */
+        min-height: 56px !important;
+        max-height: 56px !important;
+        padding: 0 34px !important;
         border-radius: 8px !important;
-        box-shadow: 0 4px 14px rgba(27, 40, 112, 0.30) !important;
-        transition: all 0.2s ease-in-out !important;
+        box-shadow: 0 4px 16px rgba(32, 57, 133, 0.35) !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
 
     div.st-key-main_generate_btn button p,
     div.st-key-main_generate_btn button div,
     div.st-key-main_generate_btn button span {
         color: #ffffff !important;
-        font-weight: 600 !important;
-        font-size: 16px !important;
+        font-weight: 700 !important;
+        font-size: 18px !important;
     }
 
-    div.st-key-main_generate_btn button:hover {
-        background-color: #131d52 !important;   /* Darker shade on hover */
-        border-color: #131d52 !important;
+    /* Hover & Active / Clicked State: #f56642 */
+    div.st-key-main_generate_btn button:hover,
+    div.st-key-main_generate_btn button:active,
+    div.st-key-main_generate_btn button:focus:active {
+        background-color: #f56642 !important;   /* Hover / Click: #f56642 */
+        border-color: #f56642 !important;
+        color: #ffffff !important;
         transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(27, 40, 112, 0.40) !important;
+        box-shadow: 0 8px 24px rgba(245, 102, 66, 0.45) !important;
     }
 
-    div.st-key-main_generate_btn button:active {
-        transform: translateY(0);
+    div.st-key-main_generate_btn button:hover p,
+    div.st-key-main_generate_btn button:hover div,
+    div.st-key-main_generate_btn button:hover span,
+    div.st-key-main_generate_btn button:active p,
+    div.st-key-main_generate_btn button:active div,
+    div.st-key-main_generate_btn button:active span {
+        color: #ffffff !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -275,7 +287,7 @@ st.sidebar.title(ui["sidebar_title"])
 user_name = st.sidebar.text_input(ui["name_label"], value="Mayank", key="user_name_input")
 user_role = st.sidebar.selectbox(ui["role_label"], ui["roles"], key="user_role_select")
 
-# 🔒 Silent Secret Loading (Backend only, never exposed to client)
+# 🔒 Silent Secret Loading (Backend only, never exposed on the web UI)
 api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 
 # ---------------------------------------------------------
@@ -502,12 +514,12 @@ if needs_figma and not figma_images:
     missing_core_items.append(ui["figma_title"])
 
 # ---------------------------------------------------------
-# Centered, Prominent #1b2870 Action Button (Moved Down)
+# Centered, Enlarged CTA Action Button (Positioned at Bottom)
 # ---------------------------------------------------------
-# Clean vertical spacing to push the button down
-st.markdown("<div style='margin-top: 2.8rem;'></div>", unsafe_allow_html=True)
+# Generous vertical space to position the button near the bottom of the screen
+st.markdown("<div style='margin-top: 4.5rem; margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
 
-col_b1, col_b2, col_b3 = st.columns([1, 1.8, 1])
+col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
 with col_b2:
     generate_clicked = st.button(
         f"{ui['generate_btn']} : {current_option}",
