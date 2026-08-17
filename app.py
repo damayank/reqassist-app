@@ -3,6 +3,7 @@ import ssl
 import time
 import tempfile
 import urllib3
+import concurrent.futures
 
 # Disable SSL verification for corporate proxy/firewall
 os.environ["PYTHONHTTPSVERIFY"] = "0"
@@ -273,7 +274,7 @@ def render_circular_progress(placeholder, percent: int, label: str = "Generating
                     stroke-dasharray="{circumference}"
                     stroke-dashoffset="{offset}"
                     stroke-linecap="round"
-                    style="transition: stroke-dashoffset 0.3s ease;" />
+                    style="transition: stroke-dashoffset 0.1s linear;" />
             </svg>
             <div style="position: absolute; text-align: center;">
                 <span style="font-size: 24px; font-weight: 800; color: #051330; font-family: sans-serif;">{percent}%</span>
@@ -323,8 +324,8 @@ T = {
         "quiz_submit_btn": "🎯 Submit Quiz for Grading",
         "quiz_retake_btn": "🔄 Retake Quiz",
         "quiz_score_title": "Quiz Assessment Results",
-        "quiz_passed": "🎉 Excellent work! You passed the requirements check!",
-        "quiz_failed": "📚 Review needed. Check the detailed explanations below:",
+        "quiz_passed": "🎉 Excellent work! You passed the requirements check (≥ 75%)!",
+        "quiz_failed": "📚 Score is below 75%. Please review the detailed explanations below:",
         "quiz_your_ans": "Your Answer:",
         "quiz_correct_ans": "Correct Answer:",
         "quiz_explanation": "Explanation & Requirement Reference:",
@@ -371,8 +372,8 @@ T = {
         "quiz_submit_btn": "🎯 Invia Quiz per la Valutazione",
         "quiz_retake_btn": "🔄 Ripeti il Quiz",
         "quiz_score_title": "Risultati della Valutazione del Quiz",
-        "quiz_passed": "🎉 Ottimo lavoro! Hai superato la verifica dei requisiti!",
-        "quiz_failed": "📚 Revisione consigliata. Consulta le spiegazioni dettagliate di seguito:",
+        "quiz_passed": "🎉 Ottimo lavoro! Hai superato la verifica dei requisiti (≥ 75%)!",
+        "quiz_failed": "📚 Punteggio inferiore al 75%. Consulta le spiegazioni dettagliate di seguito:",
         "quiz_your_ans": "La Tua Risposta:",
         "quiz_correct_ans": "Risposta Corretta:",
         "quiz_explanation": "Spiegazione e Riferimento ai Requisiti:",
@@ -519,10 +520,7 @@ def generate_contextual_ai_slide_diagram(slide_title: str, bullets: list) -> io.
     img = Image.new("RGB", (1280, 720), color=(5, 19, 48))
     draw = ImageDraw.Draw(img)
     
-    # Outer frame
     draw.rounded_rectangle([25, 25, 1255, 695], radius=16, outline=(37, 99, 235), width=3)
-    
-    # Header box
     draw.rounded_rectangle([45, 45, 1235, 135], radius=12, fill=(15, 30, 65), outline=(59, 130, 246), width=1)
     draw.text((70, 75), f"CONTENT ARCHITECTURE • {slide_title.upper()[:40]}", fill=(255, 255, 255))
     
@@ -530,7 +528,6 @@ def generate_contextual_ai_slide_diagram(slide_title: str, bullets: list) -> io.
     b2_text = bullets[1] if len(bullets) > 1 else "Business Rule Processing"
     b3_text = bullets[2] if len(bullets) > 2 else "Final Output & State Commit"
 
-    # Context 1: API / Endpoints / Integration
     if any(k in combined_text for k in ["api", "endpoint", "payload", "http", "contract", "json"]):
         draw.rounded_rectangle([65, 175, 415, 480], radius=12, fill=(10, 25, 55), outline=(245, 102, 66), width=2)
         draw.text((85, 205), "REQUEST / PAYLOAD", fill=(245, 102, 66))
@@ -544,7 +541,6 @@ def generate_contextual_ai_slide_diagram(slide_title: str, bullets: list) -> io.
         draw.text((885, 205), "RESPONSE CODES", fill=(192, 132, 252))
         draw.text((885, 250), f"• Result: {b3_text[:30]}\n• 200 OK / 400 Bad Request\n• Audit Event Telemetry", fill=(226, 232, 240))
 
-    # Context 2: Database / Storage / Data Model
     elif any(k in combined_text for k in ["database", "db", "table", "schema", "storage", "sql", "record"]):
         draw.rounded_rectangle([65, 175, 415, 480], radius=12, fill=(10, 25, 55), outline=(59, 130, 246), width=2)
         draw.text((85, 205), "ENTITY INGESTION", fill=(59, 130, 246))
@@ -558,7 +554,6 @@ def generate_contextual_ai_slide_diagram(slide_title: str, bullets: list) -> io.
         draw.text((885, 205), "DATA SYNC & VIEWS", fill=(34, 197, 94))
         draw.text((885, 250), f"• Sync: {b3_text[:30]}\n• Read-Model Updates\n• Cache Invalidation", fill=(226, 232, 240))
 
-    # Context 3: Security / Auth / Access Control
     elif any(k in combined_text for k in ["security", "auth", "token", "permission", "role", "login"]):
         draw.rounded_rectangle([65, 175, 415, 480], radius=12, fill=(10, 25, 55), outline=(239, 68, 68), width=2)
         draw.text((85, 205), "AUTH VERIFICATION", fill=(239, 68, 68))
@@ -572,7 +567,6 @@ def generate_contextual_ai_slide_diagram(slide_title: str, bullets: list) -> io.
         draw.text((885, 205), "SESSION STATE", fill=(34, 197, 94))
         draw.text((885, 250), f"• Granted: {b3_text[:30]}\n• Secure Context Active\n• Audit Logging", fill=(226, 232, 240))
 
-    # Context 4: General Workflow / User Journey / Business Rules
     else:
         draw.rounded_rectangle([65, 175, 415, 480], radius=12, fill=(10, 25, 55), outline=(59, 130, 246), width=2)
         draw.text((85, 205), "STAGE 1 • PRECONDITIONS", fill=(59, 130, 246))
@@ -586,11 +580,9 @@ def generate_contextual_ai_slide_diagram(slide_title: str, bullets: list) -> io.
         draw.text((885, 205), "STAGE 3 • OUTCOME / UI", fill=(192, 132, 252))
         draw.text((885, 250), f"• Output: {b3_text[:30]}\n• Feedback & Navigation\n• Success Confirmation", fill=(226, 232, 240))
     
-    # Connecting Arrows
     draw.rectangle([415, 320, 455, 326], fill=(245, 102, 66))
     draw.rectangle([825, 320, 865, 326], fill=(34, 197, 94))
     
-    # Watermark
     draw.rounded_rectangle([900, 625, 1235, 675], radius=8, fill=(15, 30, 65), outline=(245, 102, 66), width=2)
     draw.text((925, 642), "ReqAssist • AI Generated Visual", fill=(245, 102, 66))
     
@@ -684,7 +676,7 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
             p.font.color.rgb = SOFT_WHITE
             p.space_after = Pt(10)
             
-        # 3. Context-Driven Visual Asset (AI Scene Diagram based on slide text OR Figma screen)
+        # 3. Context-Driven Visual Asset
         if is_visual_slide:
             try:
                 if prepared_figma and not use_ai_diagram_toggle:
@@ -1038,10 +1030,6 @@ if generate_clicked:
         show_missing_data_popup(missing_core_items)
         st.stop()
 
-    # Progress bar starts at 1% directly above the button
-    render_circular_progress(progress_slot, 1, f"ReqAssist initialized ({lang_key})...")
-    time.sleep(0.2)
-    
     is_quiz_mode = (current_idx == 6)
 
     system_prompt = f"""
@@ -1127,17 +1115,24 @@ Generate the complete artifact strictly adhering to the requested templates and 
             contents.append(Image.open(img))
 
     try:
-        render_circular_progress(progress_slot, 20, f"Analyzing source notes and screen layouts...")
-        time.sleep(0.3)
-        
-        render_circular_progress(progress_slot, 55, f"Synthesizing requirements with AI...")
-        output_text, model_used = generate_resilient_content(
-            client_inst=client,
-            contents=contents,
-            system_prompt=system_prompt,
-            response_mime_type="application/json" if is_quiz_mode else None
-        )
-        
+        current_pct = 1
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                generate_resilient_content,
+                client_inst=client,
+                contents=contents,
+                system_prompt=system_prompt,
+                response_mime_type="application/json" if is_quiz_mode else None
+            )
+
+            while not future.done():
+                render_circular_progress(progress_slot, current_pct, f"ReqAssist is generating ({lang_key})...")
+                if current_pct < 94:
+                    current_pct += 1
+                time.sleep(0.08)
+
+            output_text, model_used = future.result()
+
         st.session_state["generated_output"] = output_text
         st.session_state["generated_option"] = current_option
         st.session_state["generated_idx"] = current_idx
@@ -1148,7 +1143,9 @@ Generate the complete artifact strictly adhering to the requested templates and 
         
         # If Demo Video was requested, compile MP4
         if current_idx == 3:
-            render_circular_progress(progress_slot, 85, "Compiling AI Visual Cards & encoding MP4 video...")
+            for p in range(current_pct, 98):
+                render_circular_progress(progress_slot, p, "Compiling AI Visual Cards & encoding MP4 video...")
+                time.sleep(0.05)
             mp4_bytes, v_err = generate_mp4_video_robust(output_text, figma_images, lang=lang_key)
             if mp4_bytes:
                 st.session_state["generated_mp4_bytes"] = mp4_bytes
@@ -1167,7 +1164,7 @@ Generate the complete artifact strictly adhering to the requested templates and 
             st.session_state["quiz_user_answers"] = {}
             
         render_circular_progress(progress_slot, 100, "Finalizing deliverable...")
-        time.sleep(0.3)
+        time.sleep(0.2)
         progress_slot.empty()
         st.success(f"🎉 Generation Complete! (Powered by {model_used})")
 
@@ -1212,12 +1209,31 @@ if "generated_output" in st.session_state and st.session_state["generated_output
             st.subheader(ui["quiz_header"])
             st.write("")
 
-            user_choices = {}
-            for q_idx, item in enumerate(quiz_items):
-                st.markdown(f"##### {q_idx + 1}. {item.get('question')}")
-                opts = item.get("options", [])
-                
-                if st.session_state.get("quiz_submitted", False):
+            if not st.session_state.get("quiz_submitted", False):
+                with st.form("interactive_quiz_form"):
+                    user_choices = {}
+                    for q_idx, item in enumerate(quiz_items):
+                        st.markdown(f"##### {q_idx + 1}. {item.get('question')}")
+                        opts = item.get("options", [])
+                        chosen = st.radio(
+                            label=f"Options for Q{q_idx+1}",
+                            options=opts,
+                            key=f"quiz_radio_{q_idx}",
+                            label_visibility="collapsed",
+                            index=None
+                        )
+                        user_choices[q_idx] = chosen
+                        st.write("")
+                    
+                    submitted = st.form_submit_button(ui["quiz_submit_btn"], type="primary", use_container_width=True)
+                    if submitted:
+                        st.session_state["quiz_user_answers"] = user_choices
+                        st.session_state["quiz_submitted"] = True
+                        st.rerun()
+            else:
+                for q_idx, item in enumerate(quiz_items):
+                    st.markdown(f"##### {q_idx + 1}. {item.get('question')}")
+                    opts = item.get("options", [])
                     selected = st.session_state.get("quiz_user_answers", {}).get(q_idx, "")
                     correct_letter = item.get("correct_option", "").strip().upper()
                     
@@ -1235,25 +1251,7 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                             
                     st.info(f"**{ui['quiz_explanation']}** {item.get('explanation')}")
                     st.markdown("---")
-                else:
-                    chosen = st.radio(
-                        label=f"Options for Q{q_idx+1}",
-                        options=opts,
-                        key=f"quiz_radio_{q_idx}",
-                        label_visibility="collapsed",
-                        index=None
-                    )
-                    user_choices[q_idx] = chosen
-                    st.write("")
-
-            if not st.session_state.get("quiz_submitted", False):
-                col_q1, col_q2, col_q3 = st.columns([1, 1.5, 1])
-                with col_q2:
-                    if st.button(ui["quiz_submit_btn"], type="primary", use_container_width=True):
-                        st.session_state["quiz_user_answers"] = user_choices
-                        st.session_state["quiz_submitted"] = True
-                        st.rerun()
-            else:
+                    
                 correct_count = 0
                 total_count = len(quiz_items)
                 for q_idx, item in enumerate(quiz_items):
@@ -1266,15 +1264,28 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                 pct = (correct_count / total_count) * 100 if total_count > 0 else 0
                 st.markdown(f"### {ui['quiz_score_title']}")
                 
+                # Dynamic Red (<75%) vs Green (>=75%) Styling
+                is_passing = (pct >= 75)
+                score_color = "#16a34a" if is_passing else "#dc2626"
+                bg_color = "#f0fdf4" if is_passing else "#fef2f2"
+                border_color = "#86efac" if is_passing else "#fca5a5"
+                
                 score_col1, score_col2 = st.columns([1, 2])
                 with score_col1:
-                    st.metric(label="Score", value=f"{correct_count} / {total_count}", delta=f"{pct:.0f}%")
+                    st.markdown(f"""
+                    <div style="background-color: {bg_color}; border: 2px solid {border_color}; border-radius: 10px; padding: 14px; text-align: center;">
+                        <div style="font-size: 13px; font-weight: 600; color: #475569; text-transform: uppercase;">Score</div>
+                        <div style="font-size: 32px; font-weight: 800; color: {score_color}; margin: 4px 0;">{correct_count} / {total_count}</div>
+                        <div style="font-size: 18px; font-weight: 700; color: {score_color};">{pct:.1f}%</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
                 with score_col2:
-                    if pct >= 70:
+                    if is_passing:
                         st.success(ui["quiz_passed"])
                         st.balloons()
                     else:
-                        st.warning(ui["quiz_failed"])
+                        st.error(ui["quiz_failed"])
                         
                 col_r1, col_r2, col_r3 = st.columns([1, 1.5, 1])
                 with col_r2:
