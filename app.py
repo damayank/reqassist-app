@@ -21,6 +21,9 @@ from PIL import Image
 from google import genai
 from google.genai import types
 
+# Active Google Gemini Model
+MODEL_NAME = "gemini-2.0-flash"
+
 # Try importing pypdf for PDF reading
 try:
     import pypdf
@@ -134,10 +137,8 @@ st.markdown("""
         border-radius: 2px !important;
     }
 
-    /* ---------------------------------------------------------
-       4. Primary Action Button: #051330 (Dark Blue) -> #f56642 (Hover/Click)
-          EXTRA LARGE TEXT (22px font, 64px button height)
-       --------------------------------------------------------- */
+    /* 4. Primary Action Button: #051330 (Dark Blue) -> #f56642 (Hover/Click)
+          EXTRA LARGE TEXT (22px font, 64px button height) */
     .st-key-main_generate_btn button,
     .st-key-main_generate_btn button[kind="primary"],
     div[data-testid="stButton"].st-key-main_generate_btn > button,
@@ -161,7 +162,7 @@ st.markdown("""
     .st-key-main_generate_btn button span {
         color: #ffffff !important;
         font-weight: 700 !important;
-        font-size: 22px !important;            /* Force child text tags to 22px */
+        font-size: 22px !important;
         line-height: 1.2 !important;
     }
 
@@ -185,6 +186,26 @@ st.markdown("""
     .st-key-main_generate_btn button:active div,
     .st-key-main_generate_btn button:active span {
         color: #ffffff !important;
+    }
+
+    /* 5. Darker, crisp font for uploaded file badges */
+    .doc-loaded-badge {
+        color: #0f172a !important;            /* Very dark slate */
+        font-size: 13.5px !important;
+        font-weight: 600 !important;
+        margin-top: 6px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+    }
+    
+    .doc-loaded-badge code {
+        color: #0f172a !important;
+        background-color: #e2e8f0 !important;
+        font-weight: 600 !important;
+        padding: 2px 6px !important;
+        border-radius: 4px !important;
+        border: 1px solid #cbd5e1 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -448,7 +469,7 @@ def parse_markdown_tables_to_excel(markdown_text: str) -> io.BytesIO:
     return bio
 
 # ---------------------------------------------------------
-# STEP 1: Upload Source Materials
+# STEP 1: Upload Source Materials (Dark, High-Contrast Indicators)
 # ---------------------------------------------------------
 ALLOWED_EXTENSIONS = ["docx", "txt", "md", "xlsx", "xls", "csv", "pdf"]
 
@@ -467,7 +488,10 @@ with st.container():
         )
         raw_text = parse_uploaded_file(raw_file) if raw_file else ""
         if raw_file:
-            st.caption(f"✅ Loaded: `{raw_file.name}`")
+            st.markdown(
+                f"<div class='doc-loaded-badge'>✅ Loaded: <code>{raw_file.name}</code></div>", 
+                unsafe_allow_html=True
+            )
 
     with col2:
         st.markdown(f"**{ui['excel_title']}**")
@@ -480,7 +504,10 @@ with st.container():
         )
         excel_summary = parse_uploaded_file(excel_file) if excel_file else ""
         if excel_file:
-            st.caption(f"✅ Loaded: `{excel_file.name}`")
+            st.markdown(
+                f"<div class='doc-loaded-badge'>✅ Loaded: <code>{excel_file.name}</code></div>", 
+                unsafe_allow_html=True
+            )
 
     with col3:
         st.markdown(f"**{ui['figma_title']}**")
@@ -492,7 +519,10 @@ with st.container():
             label_visibility="collapsed"
         )
         if figma_images:
-            st.caption(f"✅ Loaded `{len(figma_images)}` screen(s).")
+            st.markdown(
+                f"<div class='doc-loaded-badge'>✅ Loaded: <code>{len(figma_images)} screen(s)</code></div>", 
+                unsafe_allow_html=True
+            )
 
 st.markdown("---")
 
@@ -624,7 +654,7 @@ Generate the complete artifact strictly adhering to the requested templates and 
 
         try:
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model=MODEL_NAME,
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
@@ -675,7 +705,7 @@ if "generated_output" in st.session_state and st.session_state["generated_output
         # 2. PowerPoint (.pptx) Export
         with col_d2:
             ppt_parser = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model=MODEL_NAME,
                 contents=[f"Convert this deliverable into a structured presentation as a JSON array of slide objects with keys 'title', 'bullets' (list of strings), 'notes' (string). Keep text strictly in {lang_key}:\n\n{output_text}"],
                 config=types.GenerateContentConfig(response_mime_type="application/json")
             )
