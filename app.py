@@ -36,7 +36,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Sidebar nowrap fix, standard buttons, and prominent #051330 CTA button
+# Custom CSS: Sidebar nowrap fix, standard buttons, and prominent #10347d CTA button
 st.markdown("""
 <style>
     /* 1. Safe top & bottom padding */
@@ -101,8 +101,8 @@ st.markdown("""
         color: #0f172a !important;
     }
 
-    /* Active / Selected Option Buttons (Excluding the main generate button) */
-    div.stButton:not(.st-key-main_generate_btn) > button[kind="primary"] {
+    /* Active / Selected Option Buttons */
+    div.stButton > button[kind="primary"] {
         background-color: #2563eb !important;
         color: #ffffff !important;
         border: 1.5px solid #1d4ed8 !important;
@@ -135,41 +135,36 @@ st.markdown("""
     }
 
     /* ---------------------------------------------------------
-       4. Primary Action Button (Targeted strictly with #051330)
+       4. Primary Action Button: #10347d (Dark Blue) -> #f56642 (Hover/Click)
           +15% larger size (56px height, 18px text, 34px padding)
        --------------------------------------------------------- */
-    .st-key-main_generate_btn button,
-    .st-key-main_generate_btn button[kind="primary"],
-    div[data-testid="stButton"].st-key-main_generate_btn > button,
-    div[data-testid="stButton"].st-key-main_generate_btn > button[kind="primary"] {
-        background-color: #051330 !important;   /* Shade: #051330 */
+    div.st-key-main_generate_btn button {
+        background-color: #10347d !important;   /* Target Dark Blue */
         color: #ffffff !important;
-        border: 1px solid #051330 !important;
-        font-size: 18px !important;            /* +15% font size */
+        border: 1px solid #10347d !important;
+        font-size: 18px !important;            /* +15% font enlargement */
         font-weight: 700 !important;
-        height: 56px !important;               /* +15% height */
+        height: 56px !important;               /* +15% height enlargement */
         min-height: 56px !important;
         max-height: 56px !important;
         padding: 0 34px !important;
         border-radius: 8px !important;
-        box-shadow: 0 4px 16px rgba(5, 19, 48, 0.45) !important;
+        box-shadow: 0 4px 16px rgba(16, 52, 125, 0.35) !important;
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
 
-    .st-key-main_generate_btn button p,
-    .st-key-main_generate_btn button div,
-    .st-key-main_generate_btn button span {
+    div.st-key-main_generate_btn button p,
+    div.st-key-main_generate_btn button div,
+    div.st-key-main_generate_btn button span {
         color: #ffffff !important;
         font-weight: 700 !important;
         font-size: 18px !important;
     }
 
-    /* Hover & Active / Clicked State: #f56642 */
-    .st-key-main_generate_btn button:hover,
-    .st-key-main_generate_btn button:active,
-    .st-key-main_generate_btn button:focus:active,
-    div[data-testid="stButton"].st-key-main_generate_btn > button:hover,
-    div[data-testid="stButton"].st-key-main_generate_btn > button:active {
+    /* Hover & Active / Clicked State */
+    div.st-key-main_generate_btn button:hover,
+    div.st-key-main_generate_btn button:active,
+    div.st-key-main_generate_btn button:focus:active {
         background-color: #f56642 !important;   /* Hover / Click: #f56642 */
         border-color: #f56642 !important;
         color: #ffffff !important;
@@ -177,19 +172,19 @@ st.markdown("""
         box-shadow: 0 8px 24px rgba(245, 102, 66, 0.45) !important;
     }
 
-    .st-key-main_generate_btn button:hover p,
-    .st-key-main_generate_btn button:hover div,
-    .st-key-main_generate_btn button:hover span,
-    .st-key-main_generate_btn button:active p,
-    .st-key-main_generate_btn button:active div,
-    .st-key-main_generate_btn button:active span {
+    div.st-key-main_generate_btn button:hover p,
+    div.st-key-main_generate_btn button:hover div,
+    div.st-key-main_generate_btn button:hover span,
+    div.st-key-main_generate_btn button:active p,
+    div.st-key-main_generate_btn button:active div,
+    div.st-key-main_generate_btn button:active span {
         color: #ffffff !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# UI Dictionary (English & Italiano Only - Clean Button Names)
+# UI Dictionary (English & Italiano Only - No Number Icons)
 # ---------------------------------------------------------
 T = {
     "English": {
@@ -475,7 +470,7 @@ with st.container():
 st.markdown("---")
 
 # ---------------------------------------------------------
-# STEP 2: Deliverable Selection
+# STEP 2: Deliverable Selection (Clean Names without numbers)
 # ---------------------------------------------------------
 st.markdown(f"### {ui['step2_title']}")
 
@@ -519,8 +514,9 @@ if needs_figma and not figma_images:
     missing_core_items.append(ui["figma_title"])
 
 # ---------------------------------------------------------
-# Centered, Prominent #051330 Action Button (Positioned at Bottom)
+# Centered, Prominent #10347d Action Button (Positioned at Bottom)
 # ---------------------------------------------------------
+# Generous vertical space to position the button near the bottom of the screen
 st.markdown("<div style='margin-top: 4.5rem; margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
 
 col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
