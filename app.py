@@ -36,16 +36,26 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Light theme matching file uploader buttons, uniform height (38px), non-bold text
+# Custom CSS: Multi-language sidebar title fix, uniform buttons, centered dark navy generate button
 st.markdown("""
 <style>
-    /* Safe top padding so content is never hidden under the Streamlit top header */
+    /* 1. Safe top padding */
     .block-container {
         padding-top: 3.5rem !important;
         padding-bottom: 2.5rem !important;
     }
     
-    /* Universal Button Styling: Light theme, matches uploader button style & compact height */
+    /* 2. Prevent Sidebar title from wrapping awkwardly in Italian */
+    section[data-testid="stSidebar"] h1 {
+        font-size: 1.25rem !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        line-height: 1.3 !important;
+        padding-bottom: 0.4rem !important;
+    }
+
+    /* 3. Universal Button Styling: Light theme & compact height */
     div.stButton > button {
         width: 100% !important;
         height: 38px !important;
@@ -55,7 +65,7 @@ st.markdown("""
         align-items: center !important;
         justify-content: center !important;
         border-radius: 6px !important;
-        font-size: 15px !important;
+        font-size: 14px !important;
         font-weight: 500 !important;
         padding: 0 12px !important;
         margin: 0 !important;
@@ -69,11 +79,11 @@ st.markdown("""
         transition: all 0.2s ease-in-out !important;
     }
 
-    /* Inner text & paragraphs: strictly non-bold and zero vertical margins */
+    /* Inner text & paragraphs: non-bold & zero vertical margins */
     div.stButton > button p,
     div.stButton > button div,
     div.stButton > button span {
-        font-size: 15px !important;
+        font-size: 14px !important;
         font-weight: 500 !important;
         margin: 0 !important;
         padding: 0 !important;
@@ -124,17 +134,38 @@ st.markdown("""
         border-radius: 2px !important;
     }
 
-    /* Generate Action Button Styling */
+    /* 4. Compact, Centered, Dark Navy Blue Generate Action Button */
     div.st-key-main_generate_btn button {
-        height: 42px !important;
-        min-height: 42px !important;
-        font-size: 16px !important;
+        background-color: #0b2545 !important;   /* Dark Navy Blue */
+        color: #ffffff !important;
+        border: 1px solid #0b2545 !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        padding: 0 24px !important;
+        border-radius: 6px !important;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    div.st-key-main_generate_btn button p,
+    div.st-key-main_generate_btn button span {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+    }
+
+    div.st-key-main_generate_btn button:hover {
+        background-color: #051428 !important;   /* Deepest Navy on hover */
+        border-color: #051428 !important;
+        transform: translateY(-1px);
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# UI Dictionary (English & Italiano)
+# UI Dictionary (English & Italiano Only)
 # ---------------------------------------------------------
 T = {
     "English": {
@@ -143,8 +174,7 @@ T = {
         "name_label": "Your Name:",
         "role_label": "Select Your Role:",
         "roles": ["BA / PM / PO (Full Authoring)", "Developer / Tester / Viewer"],
-        "api_key_label": "Gemini API Key:",
-        "api_key_warn": "⚠️ Enter your Gemini API Key in the left sidebar to activate ReqAssist.",
+        "api_key_warn": "⚠️ Gemini API Key missing. Please configure GEMINI_API_KEY in Streamlit Cloud Secrets.",
         "welcome": "Let's turn your raw requirements into high-impact deliverables.",
         "step1_title": "📂 STEP 1: Upload Source Documentation & Assets",
         "raw_title": "📄 1. Functional Notes RAW",
@@ -155,9 +185,10 @@ T = {
         "generate_btn": "✨ Generate Deliverable",
         "tab_preview": "📄 Preview Output",
         "tab_download": "📥 Download Formatted Files",
-        "docx_btn": "📄 Download as Word Document (.docx)",
-        "xlsx_btn": "📊 Download Test Cases as Excel (.xlsx)",
-        "pptx_btn": "📊 Download PowerPoint Deck (.pptx)",
+        "docx_btn": "📄 Download Word (.docx)",
+        "xlsx_btn": "📊 Download Test Cases (.xlsx)",
+        "pptx_btn": "📊 Download Presentation (.pptx)",
+        "md_btn": "📝 Download Markdown (.md)",
         "viewer_err": "🚫 Access Restricted: Options 1 to 4 are restricted to BA & PM roles. Please contact your project PM or PO.",
         "popup_title": "⚠️ Missing Required Documents",
         "popup_msg": "ReqAssist strictly requires the following document(s) before generating this artifact. Please upload them in Step 1:",
@@ -178,8 +209,7 @@ T = {
         "name_label": "Il Tuo Nome:",
         "role_label": "Seleziona il Tuo Ruolo:",
         "roles": ["BA / PM / PO (Autore Completo)", "Sviluppatore / Tester / Viewer"],
-        "api_key_label": "Chiave API Gemini:",
-        "api_key_warn": "⚠️ Inserisci la tua chiave API Gemini nella barra laterale per attivare ReqAssist.",
+        "api_key_warn": "⚠️ Chiave API Gemini mancante. Configura GEMINI_API_KEY nei Secrets di Streamlit Cloud.",
         "welcome": "Trasformiamo i tuoi requisiti in deliverable di alto impatto.",
         "step1_title": "📂 PASSAGGIO 1: Carica la Documentazione Sorgente & Asset",
         "raw_title": "📄 1. Analisi Funzionale RAW",
@@ -192,7 +222,8 @@ T = {
         "tab_download": "📥 Scarica File Formattati",
         "docx_btn": "📄 Scarica Documento Word (.docx)",
         "xlsx_btn": "📊 Scarica Test Case in Excel (.xlsx)",
-        "pptx_btn": "📊 Scarica Presentazione PowerPoint (.pptx)",
+        "pptx_btn": "📊 Scarica Presentazione (.pptx)",
+        "md_btn": "📝 Scarica Markdown (.md)",
         "viewer_err": "🚫 Accesso Limitato: Le opzioni da 1 a 4 sono riservate a BA e PM. Contatta il PM o PO del progetto.",
         "popup_title": "⚠️ Documenti Obbligatori Mancanti",
         "popup_msg": "ReqAssist richiede obbligatoriamente i seguenti documenti prima di procedere. Caricali nel Passaggio 1:",
@@ -210,13 +241,10 @@ T = {
 }
 
 # ---------------------------------------------------------
-# Sidebar Setup: Language & Credentials (State Persistence)
+# Sidebar Setup: Language & Role Selection
 # ---------------------------------------------------------
 if "selected_lang" not in st.session_state:
     st.session_state.selected_lang = "English"
-
-if "saved_api_key" not in st.session_state:
-    st.session_state.saved_api_key = ""
 
 st.sidebar.markdown("**Language / Lingua:**")
 
@@ -240,22 +268,8 @@ st.sidebar.title(ui["sidebar_title"])
 user_name = st.sidebar.text_input(ui["name_label"], value="Mayank", key="user_name_input")
 user_role = st.sidebar.selectbox(ui["role_label"], ui["roles"], key="user_role_select")
 
-# Check Streamlit Secrets first, then session_state, else blank
-secret_key = st.secrets.get("GEMINI_API_KEY", "")
-default_key = secret_key if secret_key else st.session_state.get("saved_api_key", "")
-
-api_key_input = st.sidebar.text_input(
-    ui["api_key_label"], 
-    type="password", 
-    value=default_key,
-    key="gemini_api_key_input",
-    help="Pre-configured via Cloud Secrets or enter manually at aistudio.google.com"
-)
-
-if api_key_input:
-    st.session_state.saved_api_key = api_key_input
-
-api_key = st.session_state.saved_api_key
+# 🔒 Silent Secret Loading (Backend only, never exposed to client)
+api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 
 # ---------------------------------------------------------
 # Header & Welcome
@@ -263,12 +277,10 @@ api_key = st.session_state.saved_api_key
 st.title("🚀 ReqAssist")
 st.caption(f"**{'Benvenuto' if lang_key == 'Italiano' else 'Welcome'}, {user_name}!** {ui['welcome']}")
 
-# Check API Key after rendering header
+# Check API Key validity silently
 if not api_key:
-    st.sidebar.warning(ui["api_key_warn"])
-    st.info(f"👈 **{ui['api_key_warn']}**")
+    st.error(ui["api_key_warn"])
     st.stop()
-
 
 # Initialize Gemini Client with SSL verification bypass
 client = genai.Client(
@@ -329,7 +341,7 @@ def parse_uploaded_file(uploaded_file) -> str:
         return f"Error reading {uploaded_file.name}: {str(e)}"
 
 # ---------------------------------------------------------
-# Helper Functions: Exporters
+# Helper Functions: Exporters (DOCX, PPTX, XLSX)
 # ---------------------------------------------------------
 def create_docx(title: str, content: str) -> io.BytesIO:
     doc = Document()
@@ -390,7 +402,7 @@ def parse_markdown_table_to_excel(markdown_text: str) -> io.BytesIO:
     return None
 
 # ---------------------------------------------------------
-# STEP 1: Upload Source Materials (Accepts docx, txt, xlsx, csv, xls, pdf)
+# STEP 1: Upload Source Materials
 # ---------------------------------------------------------
 ALLOWED_EXTENSIONS = ["docx", "txt", "md", "xlsx", "xls", "csv", "pdf"]
 
@@ -439,7 +451,7 @@ with st.container():
 st.markdown("---")
 
 # ---------------------------------------------------------
-# STEP 2: Deliverable Selection (Compact Light Theme Buttons)
+# STEP 2: Deliverable Selection
 # ---------------------------------------------------------
 st.markdown(f"### {ui['step2_title']}")
 
@@ -468,16 +480,8 @@ if is_viewer and current_idx < 4:
     st.stop()
 
 # ---------------------------------------------------------
-# Updated Document Matrix Checking
+# Document Matrix Checking
 # ---------------------------------------------------------
-# 0 (AC): Notes RAW + Field Validation
-# 1 (Test Cases): Field Validation
-# 2 (Detailed FA): Notes RAW + Field Validation + FIGMA
-# 3 (Demo Video): Notes RAW + Field Validation + FIGMA
-# 4 (Presentation/PPT): Notes RAW + Field Validation + FIGMA
-# 5 (FAQs): Notes RAW + Field Validation
-# 6 (Quiz): Notes RAW + Field Validation
-
 needs_raw = current_idx in [0, 2, 3, 4, 5, 6]
 needs_excel = current_idx in [0, 1, 2, 3, 4, 5, 6]
 needs_figma = current_idx in [2, 3, 4]
@@ -491,11 +495,22 @@ if needs_figma and not figma_images:
     missing_core_items.append(ui["figma_title"])
 
 # ---------------------------------------------------------
-# Generation Trigger & AI Execution
+# Centered, Compact Action Button & AI Execution
 # ---------------------------------------------------------
 st.markdown("<br>", unsafe_allow_html=True)
-if st.button(f"{ui['generate_btn']} : {current_option}", key="main_generate_btn", type="primary", use_container_width=True):
-    # Trigger modal popup if any required document is missing
+
+# Three-column wrapper to center the compact action button
+col_b1, col_b2, col_b3 = st.columns([1, 1.4, 1])
+with col_b2:
+    generate_clicked = st.button(
+        f"{ui['generate_btn']} : {current_option}",
+        key="main_generate_btn",
+        type="primary",
+        use_container_width=True
+    )
+
+if generate_clicked:
+    # Trigger modal popup if required documents are missing
     if missing_core_items:
         show_missing_data_popup(missing_core_items)
         st.stop()
@@ -546,7 +561,7 @@ Generate the complete artifact strictly adhering to the requested templates and 
 
         try:
             response = client.models.generate_content(
-                model="gemini-3.7-flash",
+                model="gemini-2.5-flash",
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
@@ -555,51 +570,84 @@ Generate the complete artifact strictly adhering to the requested templates and 
             )
             
             output_text = response.text
+            st.session_state["generated_output"] = output_text
+            st.session_state["generated_option"] = current_option
+            st.session_state["generated_idx"] = current_idx
             st.success("🎉 Generation Complete!")
-            
-            tab_prev, tab_down = st.tabs([ui["tab_preview"], ui["tab_download"]])
-            
-            with tab_prev:
-                st.markdown(output_text)
-                
-            with tab_down:
-                docx_bio = create_docx(current_option, output_text)
-                st.download_button(
-                    label=ui["docx_btn"],
-                    data=docx_bio,
-                    file_name=f"ReqAssist_{user_name}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-                
-                # Excel Export (.xlsx)
-                if current_idx == 1:
-                    excel_bio = parse_markdown_table_to_excel(output_text)
-                    if excel_bio:
-                        st.download_button(
-                            label=ui["xlsx_btn"],
-                            data=excel_bio,
-                            file_name=f"ReqAssist_TestCases_{user_name}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
-                        
-                # PPT Export (.pptx)
-                if current_idx == 4:
-                    ppt_parser = client.models.generate_content(
-                        model="gemini-3.7-flash",
-                        contents=[f"Convert this presentation into a JSON array of slide objects with keys 'title', 'bullets' (list of strings), 'notes' (string). Keep text in {lang_key}:\n\n{output_text}"],
-                        config=types.GenerateContentConfig(response_mime_type="application/json")
-                    )
-                    try:
-                        slides_data = json.loads(ppt_parser.text)
-                        pptx_bio = create_pptx(slides_data)
-                        st.download_button(
-                            label=ui["pptx_btn"],
-                            data=pptx_bio,
-                            file_name=f"ReqAssist_Presentation_{user_name}.pptx",
-                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                        )
-                    except Exception:
-                        st.info("You can copy the slide Markdown directly from the Preview tab.")
 
         except Exception as e:
             st.error(f"Error: {str(e)}")
+
+# ---------------------------------------------------------
+# Output Display & Direct Exports (.docx, .pptx, .md, .xlsx)
+# ---------------------------------------------------------
+if "generated_output" in st.session_state and st.session_state["generated_output"]:
+    output_text = st.session_state["generated_output"]
+    active_opt_name = st.session_state.get("generated_option", current_option)
+    active_opt_idx = st.session_state.get("generated_idx", current_idx)
+
+    st.markdown("---")
+    tab_prev, tab_down = st.tabs([ui["tab_preview"], ui["tab_download"]])
+    
+    with tab_prev:
+        st.markdown(output_text)
+        
+    with tab_down:
+        # Determine clean filename
+        base_name = active_opt_name.split(" ", 1)[-1].replace(" ", "_").replace("/", "_")
+        
+        col_d1, col_d2, col_d3 = st.columns(3)
+        
+        # 1. Word Document (.docx) Export
+        with col_d1:
+            docx_bio = create_docx(active_opt_name, output_text)
+            st.download_button(
+                label=ui["docx_btn"],
+                data=docx_bio,
+                file_name=f"ReqAssist_{base_name}_{user_name}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True
+            )
+            
+        # 2. PowerPoint (.pptx) Export (Available for all, optimized for PPT Option)
+        with col_d2:
+            ppt_parser = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[f"Convert this deliverable into a structured presentation as a JSON array of slide objects with keys 'title', 'bullets' (list of strings), 'notes' (string). Keep text strictly in {lang_key}:\n\n{output_text}"],
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
+            try:
+                slides_data = json.loads(ppt_parser.text)
+                pptx_bio = create_pptx(slides_data)
+                st.download_button(
+                    label=ui["pptx_btn"],
+                    data=pptx_bio,
+                    file_name=f"ReqAssist_{base_name}_{user_name}.pptx",
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    use_container_width=True
+                )
+            except Exception:
+                st.info("Direct Markdown available below.")
+
+        # 3. Markdown (.md) Export
+        with col_d3:
+            st.download_button(
+                label=ui["md_btn"],
+                data=output_text.encode("utf-8"),
+                file_name=f"ReqAssist_{base_name}_{user_name}.md",
+                mime="text/markdown",
+                use_container_width=True
+            )
+            
+        # 4. Optional Excel (.xlsx) Export for Test Cases
+        if active_opt_idx == 1:
+            excel_bio = parse_markdown_table_to_excel(output_text)
+            if excel_bio:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.download_button(
+                    label=ui["xlsx_btn"],
+                    data=excel_bio,
+                    file_name=f"ReqAssist_TestCases_{user_name}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
