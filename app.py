@@ -36,7 +36,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Multi-language sidebar title fix, uniform buttons, centered dark navy generate button
+# Custom CSS: Sidebar nowrap fix, standard secondary buttons, and prominent #1b2870 CTA button
 st.markdown("""
 <style>
     /* 1. Safe top padding */
@@ -45,7 +45,7 @@ st.markdown("""
         padding-bottom: 2.5rem !important;
     }
     
-    /* 2. Prevent Sidebar title from wrapping awkwardly in Italian */
+    /* 2. Prevent Sidebar title from wrapping in Italian */
     section[data-testid="stSidebar"] h1 {
         font-size: 1.25rem !important;
         white-space: nowrap !important;
@@ -55,7 +55,7 @@ st.markdown("""
         padding-bottom: 0.4rem !important;
     }
 
-    /* 3. Universal Button Styling: Light theme & compact height */
+    /* 3. Universal Secondary Button Styling: Light theme & standard compact height (38px) */
     div.stButton > button {
         width: 100% !important;
         height: 38px !important;
@@ -79,7 +79,7 @@ st.markdown("""
         transition: all 0.2s ease-in-out !important;
     }
 
-    /* Inner text & paragraphs: non-bold & zero vertical margins */
+    /* Inner text for generic buttons */
     div.stButton > button p,
     div.stButton > button div,
     div.stButton > button span {
@@ -101,15 +101,15 @@ st.markdown("""
         color: #0f172a !important;
     }
 
-    /* Active / Selected Button State: Distinct Royal Blue Highlight */
+    /* Active / Selected Option Buttons */
     div.stButton > button[kind="primary"] {
         background-color: #2563eb !important;
         color: #ffffff !important;
         border: 1.5px solid #1d4ed8 !important;
-        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35) !important;
+        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.30) !important;
     }
 
-    /* Language Buttons with Compact Flag Icons */
+    /* Flag icons on language selector buttons */
     div.st-key-btn_lang_en button::before {
         content: "" !important;
         display: inline-block !important;
@@ -134,32 +134,39 @@ st.markdown("""
         border-radius: 2px !important;
     }
 
-    /* 4. Compact, Centered, Dark Navy Blue Generate Action Button */
+    /* 4. Main Action Button: #1b2870, larger size (48px), prominent styling */
     div.st-key-main_generate_btn button {
-        background-color: #0b2545 !important;   /* Dark Navy Blue */
+        background-color: #1b2870 !important;   /* Custom #1b2870 */
         color: #ffffff !important;
-        border: 1px solid #0b2545 !important;
-        font-size: 14px !important;
+        border: 1px solid #1b2870 !important;
+        font-size: 16px !important;            /* Larger font */
         font-weight: 600 !important;
-        height: 38px !important;
-        min-height: 38px !important;
-        max-height: 38px !important;
-        padding: 0 24px !important;
-        border-radius: 6px !important;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15) !important;
+        height: 48px !important;               /* Taller than 38px */
+        min-height: 48px !important;
+        max-height: 48px !important;
+        padding: 0 28px !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 14px rgba(27, 40, 112, 0.30) !important;
+        transition: all 0.2s ease-in-out !important;
     }
 
     div.st-key-main_generate_btn button p,
+    div.st-key-main_generate_btn button div,
     div.st-key-main_generate_btn button span {
         color: #ffffff !important;
         font-weight: 600 !important;
-        font-size: 14px !important;
+        font-size: 16px !important;
     }
 
     div.st-key-main_generate_btn button:hover {
-        background-color: #051428 !important;   /* Deepest Navy on hover */
-        border-color: #051428 !important;
-        transform: translateY(-1px);
+        background-color: #131d52 !important;   /* Darker shade on hover */
+        border-color: #131d52 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(27, 40, 112, 0.40) !important;
+    }
+
+    div.st-key-main_generate_btn button:active {
+        transform: translateY(0);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -495,12 +502,12 @@ if needs_figma and not figma_images:
     missing_core_items.append(ui["figma_title"])
 
 # ---------------------------------------------------------
-# Centered, Compact Action Button & AI Execution
+# Centered, Prominent #1b2870 Action Button (Moved Down)
 # ---------------------------------------------------------
-st.markdown("<br>", unsafe_allow_html=True)
+# Clean vertical spacing to push the button down
+st.markdown("<div style='margin-top: 2.8rem;'></div>", unsafe_allow_html=True)
 
-# Three-column wrapper to center the compact action button
-col_b1, col_b2, col_b3 = st.columns([1, 1.4, 1])
+col_b1, col_b2, col_b3 = st.columns([1, 1.8, 1])
 with col_b2:
     generate_clicked = st.button(
         f"{ui['generate_btn']} : {current_option}",
@@ -609,7 +616,7 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                 use_container_width=True
             )
             
-        # 2. PowerPoint (.pptx) Export (Available for all, optimized for PPT Option)
+        # 2. PowerPoint (.pptx) Export
         with col_d2:
             ppt_parser = client.models.generate_content(
                 model="gemini-2.5-flash",
