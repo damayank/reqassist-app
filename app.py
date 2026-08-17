@@ -21,14 +21,41 @@ from PIL import Image
 from google import genai
 from google.genai import types
 
-# Active Google Gemini Model
-MODEL_NAME = "gemini-1.5-flash"
-
 # Try importing pypdf for PDF reading
 try:
     import pypdf
 except ImportError:
     pypdf = None
+
+# ---------------------------------------------------------
+# Dynamic Model Selector (Prevents 404 NOT_FOUND errors)
+# ---------------------------------------------------------
+def get_active_model(client_instance) -> str:
+    """Auto-detects the best available model enabled on the user's API key."""
+    priority_models = [
+        "gemini-2.0-flash",
+        "gemini-1.5-flash-002",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro-002",
+        "gemini-1.5-pro",
+        "gemini-2.0-flash-exp"
+    ]
+    try:
+        available_models = [
+            m.name.replace("models/", "") 
+            for m in client_instance.models.list() 
+            if hasattr(m, "supported_actions") and "generateContent" in (m.supported_actions or [])
+            or hasattr(m, "name")
+        ]
+        for candidate in priority_models:
+            if candidate in available_models:
+                return candidate
+        if available_models:
+            return available_models[0]
+    except Exception:
+        pass
+    return "gemini-1.5-flash-002"  # Rock-solid fallback
 
 # ---------------------------------------------------------
 # Page Configuration & Visual Theme
@@ -190,7 +217,7 @@ st.markdown("""
 
     /* 5. Darker, crisp font for uploaded file badges */
     .doc-loaded-badge {
-        color: #0f172a !important;            /* Very dark slate */
+        color: #0f172a !important;
         font-size: 13.5px !important;
         font-weight: 600 !important;
         margin-top: 6px !important;
@@ -430,7 +457,7 @@ def create_pptx(slides_json: list) -> io.BytesIO:
     return bio
 
 def parse_markdown_tables_to_excel(markdown_text: str) -> io.BytesIO:
-    """Parses multiple markdown tables from text into separate Excel sheets (e.g. Functional & Technical)."""
+    """Parses multiple markdown tables from text into separate Excel sheets (Functional & Technical)."""
     tables = []
     current_table = []
     in_table = False
@@ -469,7 +496,7 @@ def parse_markdown_tables_to_excel(markdown_text: str) -> io.BytesIO:
     return bio
 
 # ---------------------------------------------------------
-# STEP 1: Upload Source Materials (Dark, High-Contrast Indicators)
+# STEP 1: Upload Source Materials
 # ---------------------------------------------------------
 ALLOWED_EXTENSIONS = ["docx", "txt", "md", "xlsx", "xls", "csv", "pdf"]
 
@@ -590,7 +617,10 @@ if generate_clicked:
         show_missing_data_popup(missing_core_items)
         st.stop()
 
-    with st.spinner(f"ReqAssist is generating ({lang_key})..."):
+    # Dynamically select active model for this API key
+    active_model = get_active_model(client)
+
+    with st.spinner(f"ReqAssist is generating ({lang_key}) using {active_model}..."):
         
         system_prompt = f"""
 [ROLE & PERSONA]
@@ -654,7 +684,7 @@ Generate the complete artifact strictly adhering to the requested templates and 
 
         try:
             response = client.models.generate_content(
-                model=MODEL_NAME,
+                model=active_model,
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
@@ -686,9 +716,7 @@ if "generated_output" in st.session_state and st.session_state["generated_output
         st.markdown(output_text)
         
     with tab_down:
-        # Determine clean filename
         base_name = active_opt_name.split(" ", 1)[-1].replace(" ", "_").replace("/", "_")
-        
         col_d1, col_d2, col_d3 = st.columns(3)
         
         # 1. Word Document (.docx) Export
@@ -704,8 +732,9 @@ if "generated_output" in st.session_state and st.session_state["generated_output
             
         # 2. PowerPoint (.pptx) Export
         with col_d2:
+            ppt_model = get_active_model(client)
             ppt_parser = client.models.generate_content(
-                model=MODEL_NAME,
+                model=ppt_model,
                 contents=[f"Convert this deliverable into a structured presentation as a JSON array of slide objects with keys 'title', 'bullets' (list of strings), 'notes' (string). Keep text strictly in {lang_key}:\n\n{output_text}"],
                 config=types.GenerateContentConfig(response_mime_type="application/json")
             )
