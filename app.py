@@ -22,8 +22,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
-from pptx.enum.text import PP_ALIGN
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageOps
 from google import genai
 from google.genai import types
 
@@ -39,16 +38,19 @@ try:
 except ImportError:
     gTTS = None
 
-# Optional MP4 Video Generation Engine
+# Optional MP4 Video Generation Engine (Supporting MoviePy v1 and v2)
+MOVIEPY_AVAILABLE = False
+MOVIEPY_ERROR = ""
 try:
-    from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
-    MOVIEPY_AVAILABLE = True
-except Exception:
     try:
-        from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
+        from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
         MOVIEPY_AVAILABLE = True
     except Exception:
-        MOVIEPY_AVAILABLE = False
+        from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
+        MOVIEPY_AVAILABLE = True
+except Exception as e:
+    MOVIEPY_AVAILABLE = False
+    MOVIEPY_ERROR = str(e)
 
 # ---------------------------------------------------------
 # Primary Model Cascade (Gemini 3.x Flash Family)
@@ -88,11 +90,9 @@ def generate_resilient_content(client_inst, contents, system_prompt="", response
             except Exception as e:
                 err_str = str(e).lower()
                 last_err = e
-                # Transient overload / rate limit / 503 -> wait and retry
                 if any(code in err_str for code in ["503", "unavailable", "demand", "429", "quota", "resource_exhausted"]):
                     time.sleep(1.5 * (attempt + 1))
                     continue
-                # If model is not found on current tier -> switch to next model in list immediately
                 elif "404" in err_str or "not found" in err_str:
                     break
                 else:
@@ -109,16 +109,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS: Sidebar nowrap, CTA styling, plain text loaded indicators & Mid-Size Orange Spinner
+# Custom CSS
 st.markdown("""
 <style>
-    /* 1. Safe top & bottom padding */
     .block-container {
         padding-top: 3.5rem !important;
         padding-bottom: 4rem !important;
     }
     
-    /* 2. Prevent Sidebar title from wrapping in Italian */
     section[data-testid="stSidebar"] h1 {
         font-size: 1.25rem !important;
         white-space: nowrap !important;
@@ -128,7 +126,6 @@ st.markdown("""
         padding-bottom: 0.4rem !important;
     }
 
-    /* 3. Universal Secondary Button Styling: Light theme & compact height (38px) */
     div.stButton > button {
         width: 100% !important;
         height: 38px !important;
@@ -152,7 +149,6 @@ st.markdown("""
         transition: all 0.2s ease-in-out !important;
     }
 
-    /* Inner text for generic buttons */
     div.stButton > button p,
     div.stButton > button div,
     div.stButton > button span {
@@ -167,14 +163,12 @@ st.markdown("""
         color: inherit !important;
     }
 
-    /* Hover State for Inactive Selection Buttons */
     div.stButton > button:hover {
         background-color: #f1f5f9 !important;
         border-color: #94a3b8 !important;
         color: #0f172a !important;
     }
 
-    /* Active / Selected Option Buttons */
     div.stButton:not(.st-key-main_generate_btn) > button[kind="primary"] {
         background-color: #2563eb !important;
         color: #ffffff !important;
@@ -182,7 +176,6 @@ st.markdown("""
         box-shadow: 0 2px 6px rgba(37, 99, 235, 0.30) !important;
     }
 
-    /* Flag icons on language selector buttons */
     div.st-key-btn_lang_en button::before {
         content: "" !important;
         display: inline-block !important;
@@ -207,8 +200,6 @@ st.markdown("""
         border-radius: 2px !important;
     }
 
-    /* 4. Primary Action Button: #051330 (Dark Blue) -> #f56642 (Hover/Click)
-          EXTRA LARGE TEXT (22px font, 64px button height) */
     .st-key-main_generate_btn button,
     .st-key-main_generate_btn button[kind="primary"],
     div[data-testid="stButton"].st-key-main_generate_btn > button,
@@ -236,7 +227,6 @@ st.markdown("""
         line-height: 1.2 !important;
     }
 
-    /* Hover & Active / Clicked State: #f56642 */
     .st-key-main_generate_btn button:hover,
     .st-key-main_generate_btn button:active,
     .st-key-main_generate_btn button:focus:active,
@@ -258,7 +248,6 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* 5. Plain Text Upload Indicator */
     .plain-upload-status {
         color: #15803d !important;
         font-size: 14px !important;
@@ -272,51 +261,39 @@ st.markdown("""
         color: #166534 !important;
         font-weight: 700 !important;
     }
-
-    /* ---------------------------------------------------------
-       6. Mid-Size Orange Circular Progress Spinner (Fixed Alignment)
-       --------------------------------------------------------- */
-    div[data-testid="stSpinner"] {
-        display: flex !important;
-        flex-direction: row !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 16px !important;
-        padding: 2rem 0 !important;
-        width: 100% !important;
-    }
-
-    /* Mid-size circular spinner animation (40px) */
-    div[data-testid="stSpinner"] svg,
-    div[data-testid="stSpinner"] i {
-        color: #f56642 !important;
-        stroke: #f56642 !important;
-        width: 40px !important;
-        height: 40px !important;
-        min-width: 40px !important;
-        min-height: 40px !important;
-    }
-
-    div[data-testid="stSpinner"] svg circle {
-        stroke: #f56642 !important;
-        stroke-width: 4px !important;
-    }
-
-    /* Keep progress text horizontal, full width, and legible */
-    div[data-testid="stSpinner"] p,
-    div[data-testid="stSpinner"] span,
-    div[data-testid="stSpinner"] label {
-        color: #0f172a !important;
-        font-size: 17px !important;
-        font-weight: 600 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        width: auto !important;
-        white-space: nowrap !important;
-        display: inline-block !important;
-    }
 </style>
 """, unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# Centered Orange Circular Progress Function (% in center)
+# ---------------------------------------------------------
+def render_circular_progress(placeholder, percent: int, label: str = "Generating..."):
+    """Renders a centered orange circular progress ring with percentage in center."""
+    percent = max(0, min(100, int(percent)))
+    circumference = 314.16
+    offset = circumference - (circumference * percent / 100)
+    
+    html_code = f"""
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin: 2rem auto;">
+        <div style="position: relative; width: 130px; height: 130px; display: flex; align-items: center; justify-content: center;">
+            <svg style="transform: rotate(-90deg); width: 130px; height: 130px;">
+                <circle cx="65" cy="65" r="50" stroke="#e2e8f0" stroke-width="8" fill="transparent" />
+                <circle cx="65" cy="65" r="50" stroke="#f56642" stroke-width="8" fill="transparent"
+                    stroke-dasharray="{circumference}"
+                    stroke-dashoffset="{offset}"
+                    stroke-linecap="round"
+                    style="transition: stroke-dashoffset 0.3s ease;" />
+            </svg>
+            <div style="position: absolute; text-align: center;">
+                <span style="font-size: 24px; font-weight: 800; color: #051330; font-family: sans-serif;">{percent}%</span>
+            </div>
+        </div>
+        <p style="margin-top: 14px; font-size: 16px; font-weight: 600; color: #334155; font-family: sans-serif; text-align: center;">
+            {label}
+        </p>
+    </div>
+    """
+    placeholder.markdown(html_code, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # UI Dictionary (English & Italiano)
@@ -483,7 +460,7 @@ def show_missing_data_popup(missing_list):
         st.rerun()
 
 # ---------------------------------------------------------
-# Universal Multi-Format File Reader (docx, pdf, xlsx, xls, csv, txt, md)
+# Universal Multi-Format File Reader
 # ---------------------------------------------------------
 def parse_uploaded_file(uploaded_file) -> str:
     """Extracts clean text or tabular representations from docx, pdf, xlsx, xls, csv, txt, md."""
@@ -497,7 +474,7 @@ def parse_uploaded_file(uploaded_file) -> str:
         
         elif name.endswith(".pdf"):
             if pypdf is None:
-                return "PDF parser (pypdf) is not installed. Please run: pip install pypdf"
+                return "PDF parser (pypdf) is not installed."
             reader = pypdf.PdfReader(uploaded_file)
             pages_text = []
             for page in reader.pages:
@@ -514,14 +491,14 @@ def parse_uploaded_file(uploaded_file) -> str:
             df = pd.read_csv(uploaded_file)
             return df.to_string(index=False)
             
-        else: # txt, md, etc.
+        else:
             return uploaded_file.read().decode("utf-8", errors="ignore")
             
     except Exception as e:
         return f"Error reading {uploaded_file.name}: {str(e)}"
 
 # ---------------------------------------------------------
-# Helper Functions: Exporters (DOCX, PPTX Dark Blue with Images, Multi-Sheet XLSX, Audio & Direct MP4)
+# Helper Functions: Visual Cards, AI Diagrams & PPTX/Video Helpers
 # ---------------------------------------------------------
 def create_docx(title: str, content: str) -> io.BytesIO:
     doc = Document()
@@ -540,34 +517,41 @@ def create_docx(title: str, content: str) -> io.BytesIO:
     bio.seek(0)
     return bio
 
-def generate_ai_diagram_card(title: str, subtitle: str) -> io.BytesIO:
-    """Generates an AI conceptual visual card stamped with the ReqAssist watermark."""
-    img = Image.new("RGB", (1000, 750), color=(15, 30, 65))
+def generate_ai_diagram_card(title: str, subtitle: str, diagram_type: str = "FLOW") -> io.BytesIO:
+    """Generates an AI conceptual visual diagram card stamped with the ReqAssist watermark."""
+    img = Image.new("RGB", (1280, 720), color=(5, 19, 48))
     draw = ImageDraw.Draw(img)
     
-    # Outer accent border
-    draw.rounded_rectangle([20, 20, 980, 730], radius=16, outline=(37, 99, 235), width=3)
+    # Outer modern boundary
+    draw.rounded_rectangle([25, 25, 1255, 695], radius=16, outline=(37, 99, 235), width=3)
     
-    # Header card area
-    draw.rounded_rectangle([40, 40, 960, 130], radius=12, fill=(30, 58, 110))
-    draw.text((60, 65), title[:38], fill=(255, 255, 255))
+    # Header Banner
+    draw.rounded_rectangle([45, 45, 1235, 135], radius=12, fill=(15, 30, 65), outline=(59, 130, 246), width=1)
+    draw.text((70, 75), f"AI ARCHITECTURE • {title.upper()[:42]}", fill=(255, 255, 255))
     
     # Diagram simulation blocks
-    draw.rounded_rectangle([70, 170, 460, 360], radius=12, fill=(20, 40, 85), outline=(59, 130, 246), width=2)
-    draw.text((90, 200), "INPUT / CONTRACT", fill=(245, 102, 66))
-    draw.text((90, 245), "• Schema & Validation\n• Token Authentication\n• Preconditions Check", fill=(226, 232, 240))
+    # Block 1: Inputs & Preconditions
+    draw.rounded_rectangle([65, 175, 415, 480], radius=12, fill=(10, 25, 55), outline=(59, 130, 246), width=2)
+    draw.text((85, 205), "1. INPUT CONTRACTS", fill=(245, 102, 66))
+    draw.text((85, 250), "• Field Schema Parsing\n• Token Authentication\n• Preconditions Validation\n• Mandatory Flags", fill=(226, 232, 240))
     
-    draw.rounded_rectangle([530, 170, 920, 360], radius=12, fill=(20, 40, 85), outline=(34, 197, 94), width=2)
-    draw.text((550, 200), "CORE PROCESSING", fill=(34, 197, 94))
-    draw.text((550, 245), "• Business Rules Logic\n• State Machine Transition\n• DB Commit & Events", fill=(226, 232, 240))
+    # Block 2: Logic & Execution
+    draw.rounded_rectangle([455, 175, 825, 480], radius=12, fill=(10, 25, 55), outline=(34, 197, 94), width=2)
+    draw.text((475, 205), "2. BUSINESS LOGIC ENGINE", fill=(34, 197, 94))
+    draw.text((475, 250), "• State Transitions\n• Conditional Rules Engine\n• DB Commit & Transaction\n• Event Trigger Handling", fill=(226, 232, 240))
     
-    draw.rounded_rectangle([70, 400, 920, 590], radius=12, fill=(20, 40, 85), outline=(168, 85, 247), width=2)
-    draw.text((90, 430), "OUTPUT & SYSTEM RESPONSE", fill=(192, 132, 252))
-    draw.text((90, 475), f"• {subtitle[:65]}\n• Real-Time UI Feedback & Telemetry Logging", fill=(226, 232, 240))
+    # Block 3: Outputs & Events
+    draw.rounded_rectangle([865, 175, 1215, 480], radius=12, fill=(10, 25, 55), outline=(168, 85, 247), width=2)
+    draw.text((885, 205), "3. SYSTEM RESPONSE", fill=(192, 132, 252))
+    draw.text((885, 250), f"• {subtitle[:32]}\n• API 200 OK / 400 Error\n• UI State Updates\n• Audit Telemetry", fill=(226, 232, 240))
     
-    # Watermark mark
-    draw.rounded_rectangle([680, 635, 950, 695], radius=8, fill=(5, 19, 48), outline=(245, 102, 66), width=2)
-    draw.text((705, 655), "ReqAssist • AI Diagram", fill=(245, 102, 66))
+    # Connecting Arrows
+    draw.rectangle([415, 320, 455, 326], fill=(245, 102, 66))
+    draw.rectangle([825, 320, 865, 326], fill=(34, 197, 94))
+    
+    # Watermark Mark Badge
+    draw.rounded_rectangle([920, 625, 1235, 675], radius=8, fill=(15, 30, 65), outline=(245, 102, 66), width=2)
+    draw.text((945, 642), "ReqAssist • AI Generated Visual", fill=(245, 102, 66))
     
     bio = io.BytesIO()
     img.save(bio, format="PNG")
@@ -580,14 +564,12 @@ def add_watermark_to_figma_screen(uploaded_file) -> io.BytesIO:
         uploaded_file.seek(0)
         img = Image.open(uploaded_file).convert("RGBA")
         
-        # Watermark badge
         badge_w, badge_h = 260, 45
         badge = Image.new("RGBA", (badge_w, badge_h), (5, 19, 48, 230))
         b_draw = ImageDraw.Draw(badge)
         b_draw.rectangle([0, 0, badge_w-1, badge_h-1], outline=(245, 102, 66, 255), width=2)
         b_draw.text((15, 12), "ReqAssist • Figma Visual", fill=(255, 255, 255, 255))
         
-        # Stamp at bottom right of the image
         img.paste(badge, (max(10, img.width - badge_w - 20), max(10, img.height - badge_h - 20)), badge)
         
         bio = io.BytesIO()
@@ -603,22 +585,20 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
     Generates a 16:9 Presentation:
     - Dark Blue Background (#051330)
     - White Font (#FFFFFF)
-    - At least 40% of slides contain AI-generated diagrams or Figma screens with ReqAssist mark
+    - Integrates AI Generated Visual Diagrams AND Figma images with ReqAssist mark across slides
     """
     prs = Presentation()
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
     
-    DARK_BLUE = RGBColor(5, 19, 48)       # #051330
-    WHITE = RGBColor(255, 255, 255)       # #FFFFFF
-    SOFT_WHITE = RGBColor(241, 245, 249)  # #F1F5F9
-    ACCENT_ORANGE = RGBColor(245, 102, 66)# #F56642
-    MUTED_GREY = RGBColor(148, 163, 184)  # #94A3B8
+    DARK_BLUE = RGBColor(5, 19, 48)
+    WHITE = RGBColor(255, 255, 255)
+    SOFT_WHITE = RGBColor(241, 245, 249)
+    MUTED_GREY = RGBColor(148, 163, 184)
     
     total_slides = len(slides_json)
-    # Determine indices that must have visuals (at least 40% quota)
     visual_indices = set()
-    num_visual_slides = max(int(total_slides * 0.45), 1)
+    num_visual_slides = max(int(total_slides * 0.5), 2)
     step = max(total_slides // num_visual_slides, 1)
     for i in range(0, total_slides, step):
         visual_indices.add(i)
@@ -627,17 +607,18 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
             
     figma_idx = 0
     prepared_figma = [add_watermark_to_figma_screen(f) for f in (figma_files or [])]
+    use_ai_diagram_toggle = True
     
     for slide_idx, slide_data in enumerate(slides_json):
-        slide = prs.slides.add_slide(prs.slide_layouts[6]) # Blank layout
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
         
-        # 1. Full-bleed Dark Blue Background (#051330)
+        # 1. Dark Blue Background
         bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.333), Inches(7.5))
         bg.fill.solid()
         bg.fill.fore_color.rgb = DARK_BLUE
         bg.line.fill.background()
         
-        # 2. Slide Title in Pure White
+        # 2. Title in Pure White
         title_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.5), Inches(11.7), Inches(0.85))
         tf_title = title_box.text_frame
         tf_title.word_wrap = True
@@ -647,7 +628,6 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
         p_title.font.bold = True
         p_title.font.color.rgb = WHITE
         
-        # 3. Slide Content Layout (Split layout for visual slides)
         is_visual_slide = (slide_idx in visual_indices)
         text_width = Inches(6.2) if is_visual_slide else Inches(11.5)
         
@@ -663,22 +643,24 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
             p.font.color.rgb = SOFT_WHITE
             p.space_after = Pt(10)
             
-        # 4. Embed Visual Asset on 40%+ of Slides (Figma Screen OR AI Diagram Card)
+        # 3. Embed Visual: Alternate between AI-Generated Diagrams & Figma Screens
         if is_visual_slide:
             try:
-                if prepared_figma:
+                if prepared_figma and not use_ai_diagram_toggle:
                     img_stream = prepared_figma[figma_idx % len(prepared_figma)]
                     figma_idx += 1
+                    use_ai_diagram_toggle = True
                 else:
-                    first_bullet = bullets[0] if bullets else "System Requirement Workflow"
+                    first_bullet = bullets[0] if bullets else "Architecture Workflow & Requirements Analysis"
                     img_stream = generate_ai_diagram_card(slide_data.get("title", "Architecture"), first_bullet)
+                    use_ai_diagram_toggle = False if prepared_figma else True
                 
                 img_stream.seek(0)
                 slide.shapes.add_picture(img_stream, Inches(7.3), Inches(1.5), width=Inches(5.2))
             except Exception:
                 pass
                 
-        # 5. Persistent ReqAssist Watermark & Slide Counter Footer
+        # 4. Slide Footer
         footer_box = slide.shapes.add_textbox(Inches(0.8), Inches(6.8), Inches(11.7), Inches(0.4))
         tf_footer = footer_box.text_frame
         p_footer = tf_footer.paragraphs[0]
@@ -686,7 +668,6 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
         p_footer.font.size = Pt(11)
         p_footer.font.color.rgb = MUTED_GREY
         
-        # 6. Speaker Notes
         if "notes" in slide_data and slide_data["notes"]:
             notes_slide = slide.notes_slide
             notes_slide.notes_text_frame.text = slide_data["notes"]
@@ -765,78 +746,123 @@ def extract_voiceover_and_synthesize_audio(markdown_text: str, lang: str = "en")
     except Exception:
         return None
 
-def generate_mp4_video(markdown_text: str, figma_files: list, lang: str = "en") -> bytes:
+def normalize_image_to_16_9(img_stream_or_file) -> str:
+    """Converts any image into a uniform 1280x720 16:9 canvas with dark blue padding."""
+    try:
+        img_stream_or_file.seek(0)
+        im = Image.open(img_stream_or_file).convert("RGB")
+    except Exception:
+        im = Image.new("RGB", (1280, 720), color=(5, 19, 48))
+        
+    canvas = Image.new("RGB", (1280, 720), (5, 19, 48))
+    im.thumbnail((1200, 660), Image.Resampling.LANCZOS)
+    x = (1280 - im.width) // 2
+    y = (720 - im.height) // 2
+    canvas.paste(im, (x, y))
+    
+    # ReqAssist watermark stamp
+    draw = ImageDraw.Draw(canvas)
+    draw.rounded_rectangle([1000, 660, 1250, 705], radius=6, fill=(15, 30, 65), outline=(245, 102, 66), width=2)
+    draw.text((1020, 675), "ReqAssist 🚀 Demo", fill=(255, 255, 255))
+    
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+    canvas.save(tmp.name, format="PNG")
+    tmp.close()
+    return tmp.name
+
+def set_clip_duration(clip, duration):
+    """MoviePy v1 vs v2 compatibility helper for duration."""
+    return clip.with_duration(duration) if hasattr(clip, "with_duration") else clip.set_duration(duration)
+
+def set_clip_audio(video_clip, audio_clip):
+    """MoviePy v1 vs v2 compatibility helper for audio."""
+    return video_clip.with_audio(audio_clip) if hasattr(video_clip, "with_audio") else video_clip.set_audio(audio_clip)
+
+def generate_mp4_video_robust(markdown_text: str, figma_files: list, lang: str = "en"):
     """
-    Directly compiles and encodes a real MP4 video by combining 
-    the AI voiceover with the uploaded Figma screens.
+    Directly compiles an MP4 video using AI-Generated Visual Cards AND 
+    uploaded Figma/PPT screens, synced with the AI voiceover.
     """
-    if not MOVIEPY_AVAILABLE or gTTS is None:
-        return None
+    if not MOVIEPY_AVAILABLE:
+        return None, f"MoviePy engine not initialized. ({MOVIEPY_ERROR})"
+    if gTTS is None:
+        return None, "gTTS audio synthesizer is not installed."
+        
+    temp_audio_path = None
+    temp_video_path = None
+    temp_img_paths = []
     
     try:
-        # 1. Synthesize audio to temporary MP3
+        # 1. Synthesize audio
         narration = extract_voiceover_script(markdown_text)
         temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        tts = gTTS(text=narration[:4000], lang="it" if lang == "Italiano" else "en", slow=False)
-        tts.save(temp_audio.name)
+        temp_audio_path = temp_audio.name
         temp_audio.close()
         
-        audio_clip = AudioFileClip(temp_audio.name)
-        total_duration = max(audio_clip.duration, 4.0)
+        tts = gTTS(text=narration[:4000], lang="it" if lang == "Italiano" else "en", slow=False)
+        tts.save(temp_audio_path)
+        
+        audio_clip = AudioFileClip(temp_audio_path)
+        total_duration = max(float(audio_clip.duration), 5.0)
 
-        # 2. Prepare screen images
-        temp_img_paths = []
+        # 2. Build multi-frame visual sequence (AI Diagram Cards + Figma Images)
+        # AI Card 1: Title & Overview
+        ai_card_1 = generate_ai_diagram_card("System Requirements Walkthrough", "End-to-End Functional Architecture Overview")
+        temp_img_paths.append(normalize_image_to_16_9(ai_card_1))
+
+        # Add Figma Screens
         if figma_files and len(figma_files) > 0:
-            for img in figma_files:
-                watermarked_img = add_watermark_to_figma_screen(img)
-                t_img = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-                t_img.write(watermarked_img.read())
-                t_img.close()
-                temp_img_paths.append(t_img.name)
-        else:
-            # Fallback blank slide
-            placeholder = Image.new("RGB", (1280, 720), color=(5, 19, 48))
-            t_img = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-            placeholder.save(t_img.name)
-            t_img.close()
-            temp_img_paths.append(t_img.name)
+            for f in figma_files:
+                p = normalize_image_to_16_9(f)
+                temp_img_paths.append(p)
 
-        # 3. Create video clips & set durations
+        # AI Card 2: Logic & API Contracts Diagram
+        ai_card_2 = generate_ai_diagram_card("Validation Logic & Data Contracts", "Payload Processing, DB Events & Response Pipeline")
+        temp_img_paths.append(normalize_image_to_16_9(ai_card_2))
+
+        # 3. Create video timeline
         duration_per_slide = total_duration / len(temp_img_paths)
-        clips = [ImageClip(p).set_duration(duration_per_slide) for p in temp_img_paths]
+        clips = [set_clip_duration(ImageClip(p), duration_per_slide) for p in temp_img_paths]
+        
         video_clip = concatenate_videoclips(clips, method="compose")
-        video_clip = video_clip.set_audio(audio_clip)
+        video_clip = set_clip_audio(video_clip, audio_clip)
 
-        # 4. Render to MP4
+        # 4. Render MP4
         temp_video = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        temp_video_path = temp_video.name
         temp_video.close()
+        
         video_clip.write_videofile(
-            temp_video.name, 
-            fps=24, 
-            codec="libx264", 
-            audio_codec="aac", 
-            verbose=False, 
+            temp_video_path,
+            fps=24,
+            codec="libx264",
+            audio_codec="aac",
+            verbose=False,
             logger=None
         )
         
         audio_clip.close()
         video_clip.close()
 
-        with open(temp_video.name, "rb") as f:
+        with open(temp_video_path, "rb") as f:
             mp4_bytes = f.read()
 
-        # Clean up temporary files
+        return mp4_bytes, None
+
+    except Exception as e:
+        return None, str(e)
+
+    finally:
         try:
-            os.remove(temp_audio.name)
-            os.remove(temp_video.name)
+            if temp_audio_path and os.path.exists(temp_audio_path):
+                os.remove(temp_audio_path)
+            if temp_video_path and os.path.exists(temp_video_path):
+                os.remove(temp_video_path)
             for p in temp_img_paths:
-                os.remove(p)
+                if os.path.exists(p):
+                    os.remove(p)
         except Exception:
             pass
-
-        return mp4_bytes
-    except Exception:
-        return None
 
 def convert_quiz_json_to_markdown(quiz_data: list, lang_name: str) -> str:
     """Converts structured quiz JSON to clean, readable markdown for export."""
@@ -956,7 +982,7 @@ if needs_figma and not figma_images:
     missing_core_items.append(ui["figma_title"])
 
 # ---------------------------------------------------------
-# Centered, Prominent #051330 Action Button (Positioned at Bottom)
+# Centered, Prominent #051330 Action Button
 # ---------------------------------------------------------
 st.markdown("<div style='margin-top: 4.5rem; margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
 
@@ -970,17 +996,17 @@ with col_b2:
     )
 
 if generate_clicked:
-    # Trigger modal popup if required documents are missing
     if missing_core_items:
         show_missing_data_popup(missing_core_items)
         st.stop()
 
-    # Mid-size circular orange spinner with clean horizontal progress text
-    with st.spinner(f"ReqAssist is generating ({lang_key})..."):
-        
-        is_quiz_mode = (current_idx == 6)
+    # Centered Progress Ring
+    progress_slot = st.empty()
+    render_circular_progress(progress_slot, 15, f"ReqAssist is analyzing source notes ({lang_key})...")
+    
+    is_quiz_mode = (current_idx == 6)
 
-        system_prompt = f"""
+    system_prompt = f"""
 [ROLE & PERSONA]
 You are "ReqAssist," an energetic Principal Business Analyst and Product Requirements Architect. Address the user as {user_name}.
 
@@ -1043,7 +1069,7 @@ You MUST respond ENTIRELY and STRICTLY in {lang_key}. All headings, titles, desc
     ]
 """
 
-        user_content = f"""
+    user_content = f"""
 DELIVERABLE REQUESTED: {current_option}
 LANGUAGE: {lang_key}
 
@@ -1057,36 +1083,59 @@ SOURCE MATERIALS:
 Generate the complete artifact strictly adhering to the requested templates and grounding rules.
 """
 
-        contents = [user_content]
-        if figma_images and needs_figma:
-            for img in figma_images:
-                contents.append(Image.open(img))
+    contents = [user_content]
+    if figma_images and needs_figma:
+        for img in figma_images:
+            contents.append(Image.open(img))
 
-        try:
-            output_text, model_used = generate_resilient_content(
-                client_inst=client,
-                contents=contents,
-                system_prompt=system_prompt,
-                response_mime_type="application/json" if is_quiz_mode else None
-            )
+    try:
+        render_circular_progress(progress_slot, 45, f"Synthesizing requirements with AI...")
+        
+        output_text, model_used = generate_resilient_content(
+            client_inst=client,
+            contents=contents,
+            system_prompt=system_prompt,
+            response_mime_type="application/json" if is_quiz_mode else None
+        )
+        
+        st.session_state["generated_output"] = output_text
+        st.session_state["generated_option"] = current_option
+        st.session_state["generated_idx"] = current_idx
+        
+        # Reset previous video/quiz state
+        st.session_state["generated_mp4_bytes"] = None
+        st.session_state["generated_audio_bytes"] = None
+        st.session_state["video_error"] = None
+        
+        # If Demo Video was requested, pre-render the MP4 directly with AI Cards + Figma Images
+        if current_idx == 3:
+            render_circular_progress(progress_slot, 75, "Compiling AI Visual Cards & encoding MP4 video...")
+            mp4_bytes, v_err = generate_mp4_video_robust(output_text, figma_images, lang=lang_key)
+            if mp4_bytes:
+                st.session_state["generated_mp4_bytes"] = mp4_bytes
+            else:
+                st.session_state["video_error"] = v_err
+                audio_bio = extract_voiceover_and_synthesize_audio(output_text, lang=lang_key)
+                if audio_bio:
+                    st.session_state["generated_audio_bytes"] = audio_bio.getvalue()
+        
+        # If Quiz was requested, parse JSON
+        if is_quiz_mode:
+            try:
+                st.session_state["quiz_data"] = json.loads(output_text)
+            except Exception:
+                st.session_state["quiz_data"] = None
+            st.session_state["quiz_submitted"] = False
+            st.session_state["quiz_user_answers"] = {}
             
-            st.session_state["generated_output"] = output_text
-            st.session_state["generated_option"] = current_option
-            st.session_state["generated_idx"] = current_idx
-            
-            # Reset interactive quiz state on new generation
-            if is_quiz_mode:
-                try:
-                    st.session_state["quiz_data"] = json.loads(output_text)
-                except Exception:
-                    st.session_state["quiz_data"] = None
-                st.session_state["quiz_submitted"] = False
-                st.session_state["quiz_user_answers"] = {}
-                
-            st.success(f"🎉 Generation Complete! (Powered by {model_used})")
+        render_circular_progress(progress_slot, 100, "Finalizing deliverable...")
+        time.sleep(0.3)
+        progress_slot.empty()
+        st.success(f"🎉 Generation Complete! (Powered by {model_used})")
 
-        except Exception as e:
-            st.error(f"Error during generation: {str(e)}")
+    except Exception as e:
+        progress_slot.empty()
+        st.error(f"Error during generation: {str(e)}")
 
 # ---------------------------------------------------------
 # Output Display & Direct Exports (.docx, .pptx, .md, .xlsx, .mp3, .mp4)
@@ -1100,19 +1149,24 @@ if "generated_output" in st.session_state and st.session_state["generated_output
     tab_out, tab_down = st.tabs([ui["tab_output"], ui["tab_download"]])
     
     with tab_out:
-        # If Demo Video was selected, render in-app MP4 player or Audio player
+        # 🎬 Demo Video Player
         if active_opt_idx == 3:
-            mp4_video_bytes = generate_mp4_video(output_text, figma_images, lang=lang_key)
-            if mp4_video_bytes:
+            mp4_bytes = st.session_state.get("generated_mp4_bytes", None)
+            audio_bytes = st.session_state.get("generated_audio_bytes", None)
+            v_err = st.session_state.get("video_error", None)
+            
+            if mp4_bytes:
                 st.markdown(f"#### {ui['video_player_title']}")
-                st.video(mp4_video_bytes, format="video/mp4")
+                st.video(mp4_bytes, format="video/mp4")
                 st.markdown("---")
-            else:
-                audio_track = extract_voiceover_and_synthesize_audio(output_text, lang=lang_key)
-                if audio_track:
-                    st.markdown(f"#### {ui['audio_player_title']}")
-                    st.audio(audio_track, format="audio/mp3")
-                    st.markdown("---")
+            elif audio_bytes:
+                st.markdown(f"#### {ui['audio_player_title']}")
+                st.audio(audio_bytes, format="audio/mp3")
+                if v_err:
+                    st.info(f"💡 Video renderer notice: {v_err}. Audio voiceover generated as fallback.")
+                st.markdown("---")
+            elif v_err:
+                st.warning(f"⚠️ Video generation notice: {v_err}")
                 
         # 🧠 Interactive Playable Quiz Engine
         if active_opt_idx == 6 and st.session_state.get("quiz_data"):
@@ -1125,7 +1179,6 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                 st.markdown(f"##### {q_idx + 1}. {item.get('question')}")
                 opts = item.get("options", [])
                 
-                # Check if quiz has been graded
                 if st.session_state.get("quiz_submitted", False):
                     selected = st.session_state.get("quiz_user_answers", {}).get(q_idx, "")
                     correct_letter = item.get("correct_option", "").strip().upper()
@@ -1145,7 +1198,6 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                     st.info(f"**{ui['quiz_explanation']}** {item.get('explanation')}")
                     st.markdown("---")
                 else:
-                    # Active playable radio buttons
                     chosen = st.radio(
                         label=f"Options for Q{q_idx+1}",
                         options=opts,
@@ -1156,7 +1208,6 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                     user_choices[q_idx] = chosen
                     st.write("")
 
-            # Quiz Action Buttons
             if not st.session_state.get("quiz_submitted", False):
                 col_q1, col_q2, col_q3 = st.columns([1, 1.5, 1])
                 with col_q2:
@@ -1165,7 +1216,6 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                         st.session_state["quiz_submitted"] = True
                         st.rerun()
             else:
-                # Scoring Calculation
                 correct_count = 0
                 total_count = len(quiz_items)
                 for q_idx, item in enumerate(quiz_items):
@@ -1201,7 +1251,6 @@ if "generated_output" in st.session_state and st.session_state["generated_output
         base_name = active_opt_name.split(" ", 1)[-1].replace(" ", "_").replace("/", "_")
         col_d1, col_d2, col_d3 = st.columns(3)
         
-        # Prepare content for export
         exportable_text = output_text
         if active_opt_idx == 6 and st.session_state.get("quiz_data"):
             exportable_text = convert_quiz_json_to_markdown(st.session_state["quiz_data"], lang_key)
@@ -1217,7 +1266,7 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                 use_container_width=True
             )
             
-        # 2. PowerPoint (.pptx) Export (Dark Blue Theme + White Font + 40%+ Visuals with ReqAssist mark)
+        # 2. PowerPoint (.pptx) Export (Dark Blue Theme + White Font + AI Diagrams & Figma Screens with ReqAssist mark)
         with col_d2:
             try:
                 ppt_json_text, _ = generate_resilient_content(
@@ -1260,14 +1309,14 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                     use_container_width=True
                 )
 
-        # 5. Direct MP4 Video and MP3 Audio Downloads for Demo Video
+        # 5. Direct MP4 Video & MP3 Voiceover Audio Downloads for Demo Video
         if active_opt_idx == 3:
             st.markdown("<br>", unsafe_allow_html=True)
             col_v1, col_v2 = st.columns(2)
             
             # MP4 Video Download
             with col_v1:
-                mp4_bytes = generate_mp4_video(output_text, figma_images, lang=lang_key)
+                mp4_bytes = st.session_state.get("generated_mp4_bytes", None)
                 if mp4_bytes:
                     st.download_button(
                         label=ui["mp4_btn"],
@@ -1279,11 +1328,15 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                     
             # MP3 Audio Track Download
             with col_v2:
-                audio_bio = extract_voiceover_and_synthesize_audio(output_text, lang=lang_key)
-                if audio_bio:
+                audio_bytes = st.session_state.get("generated_audio_bytes", None)
+                if not audio_bytes and output_text:
+                    audio_bio = extract_voiceover_and_synthesize_audio(output_text, lang=lang_key)
+                    audio_bytes = audio_bio.getvalue() if audio_bio else None
+                    
+                if audio_bytes:
                     st.download_button(
                         label=ui["audio_btn"],
-                        data=audio_bio,
+                        data=audio_bytes,
                         file_name=f"ReqAssist_Demo_Voiceover_{user_name}.mp3",
                         mime="audio/mp3",
                         use_container_width=True
