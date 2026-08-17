@@ -239,15 +239,6 @@ st.markdown("""
         box-shadow: 0 10px 28px rgba(245, 102, 66, 0.45) !important;
     }
 
-    .st-key-main_generate_btn button:hover p,
-    .st-key-main_generate_btn button:hover div,
-    .st-key-main_generate_btn button:hover span,
-    .st-key-main_generate_btn button:active p,
-    .st-key-main_generate_btn button:active div,
-    .st-key-main_generate_btn button:active span {
-        color: #ffffff !important;
-    }
-
     .plain-upload-status {
         color: #15803d !important;
         font-size: 14px !important;
@@ -265,16 +256,16 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# Centered Orange Circular Progress Function (% in center)
+# Centered Orange Circular Progress (% in center)
 # ---------------------------------------------------------
 def render_circular_progress(placeholder, percent: int, label: str = "Generating..."):
-    """Renders a centered orange circular progress ring with percentage in center."""
-    percent = max(0, min(100, int(percent)))
+    """Renders a centered orange circular progress ring starting from 1% with percentage in center."""
+    percent = max(1, min(100, int(percent)))
     circumference = 314.16
     offset = circumference - (circumference * percent / 100)
     
     html_code = f"""
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin: 2rem auto;">
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin: 1.5rem auto 2rem auto;">
         <div style="position: relative; width: 130px; height: 130px; display: flex; align-items: center; justify-content: center;">
             <svg style="transform: rotate(-90deg); width: 130px; height: 130px;">
                 <circle cx="65" cy="65" r="50" stroke="#e2e8f0" stroke-width="8" fill="transparent" />
@@ -288,7 +279,7 @@ def render_circular_progress(placeholder, percent: int, label: str = "Generating
                 <span style="font-size: 24px; font-weight: 800; color: #051330; font-family: sans-serif;">{percent}%</span>
             </div>
         </div>
-        <p style="margin-top: 14px; font-size: 16px; font-weight: 600; color: #334155; font-family: sans-serif; text-align: center;">
+        <p style="margin-top: 12px; font-size: 16px; font-weight: 600; color: #334155; font-family: sans-serif; text-align: center;">
             {label}
         </p>
     </div>
@@ -425,7 +416,6 @@ st.sidebar.title(ui["sidebar_title"])
 user_name = st.sidebar.text_input(ui["name_label"], value="Mayank", key="user_name_input")
 user_role = st.sidebar.selectbox(ui["role_label"], ui["roles"], key="user_role_select")
 
-# 🔒 Silent Secret Loading (Backend only)
 api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 
 # ---------------------------------------------------------
@@ -434,12 +424,10 @@ api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 st.title("🚀 ReqAssist")
 st.caption(f"**{'Benvenuto' if lang_key == 'Italiano' else 'Welcome'}, {user_name}!** {ui['welcome']}")
 
-# Check API Key validity silently
 if not api_key:
     st.error(ui["api_key_warn"])
     st.stop()
 
-# Initialize Gemini Client with SSL verification bypass
 client = genai.Client(
     api_key=api_key,
     http_options=types.HttpOptions(
@@ -498,60 +486,95 @@ def parse_uploaded_file(uploaded_file) -> str:
         return f"Error reading {uploaded_file.name}: {str(e)}"
 
 # ---------------------------------------------------------
-# Helper Functions: Visual Cards, AI Diagrams & PPTX/Video Helpers
+# Context-Aware AI Diagram Engine for PowerPoint & Video
 # ---------------------------------------------------------
-def create_docx(title: str, content: str) -> io.BytesIO:
-    doc = Document()
-    doc.add_heading(title, 0)
-    for line in content.split("\n"):
-        if line.startswith("## "):
-            doc.add_heading(line.replace("## ", ""), level=1)
-        elif line.startswith("### "):
-            doc.add_heading(line.replace("### ", ""), level=2)
-        elif line.startswith("* ") or line.startswith("- "):
-            doc.add_paragraph(line[2:], style="List Bullet")
-        elif line.strip():
-            doc.add_paragraph(line)
-    bio = io.BytesIO()
-    doc.save(bio)
-    bio.seek(0)
-    return bio
-
-def generate_ai_diagram_card(title: str, subtitle: str, diagram_type: str = "FLOW") -> io.BytesIO:
-    """Generates an AI conceptual visual diagram card stamped with the ReqAssist watermark."""
+def generate_contextual_ai_slide_diagram(slide_title: str, bullets: list) -> io.BytesIO:
+    """
+    Generates a tailored visual diagram based on the SPECIFIC content of the slide.
+    Categorizes context (API, DB, Auth, Workflow, UI) and creates matching graphics.
+    """
+    combined_text = f"{slide_title} " + " ".join(bullets).lower()
+    
     img = Image.new("RGB", (1280, 720), color=(5, 19, 48))
     draw = ImageDraw.Draw(img)
     
-    # Outer modern boundary
+    # Outer frame
     draw.rounded_rectangle([25, 25, 1255, 695], radius=16, outline=(37, 99, 235), width=3)
     
-    # Header Banner
+    # Header box
     draw.rounded_rectangle([45, 45, 1235, 135], radius=12, fill=(15, 30, 65), outline=(59, 130, 246), width=1)
-    draw.text((70, 75), f"AI ARCHITECTURE • {title.upper()[:42]}", fill=(255, 255, 255))
+    draw.text((70, 75), f"CONTENT ARCHITECTURE • {slide_title.upper()[:40]}", fill=(255, 255, 255))
     
-    # Diagram simulation blocks
-    # Block 1: Inputs & Preconditions
-    draw.rounded_rectangle([65, 175, 415, 480], radius=12, fill=(10, 25, 55), outline=(59, 130, 246), width=2)
-    draw.text((85, 205), "1. INPUT CONTRACTS", fill=(245, 102, 66))
-    draw.text((85, 250), "• Field Schema Parsing\n• Token Authentication\n• Preconditions Validation\n• Mandatory Flags", fill=(226, 232, 240))
-    
-    # Block 2: Logic & Execution
-    draw.rounded_rectangle([455, 175, 825, 480], radius=12, fill=(10, 25, 55), outline=(34, 197, 94), width=2)
-    draw.text((475, 205), "2. BUSINESS LOGIC ENGINE", fill=(34, 197, 94))
-    draw.text((475, 250), "• State Transitions\n• Conditional Rules Engine\n• DB Commit & Transaction\n• Event Trigger Handling", fill=(226, 232, 240))
-    
-    # Block 3: Outputs & Events
-    draw.rounded_rectangle([865, 175, 1215, 480], radius=12, fill=(10, 25, 55), outline=(168, 85, 247), width=2)
-    draw.text((885, 205), "3. SYSTEM RESPONSE", fill=(192, 132, 252))
-    draw.text((885, 250), f"• {subtitle[:32]}\n• API 200 OK / 400 Error\n• UI State Updates\n• Audit Telemetry", fill=(226, 232, 240))
+    b1_text = bullets[0] if len(bullets) > 0 else "System Initialization"
+    b2_text = bullets[1] if len(bullets) > 1 else "Business Rule Processing"
+    b3_text = bullets[2] if len(bullets) > 2 else "Final Output & State Commit"
+
+    # Context 1: API / Endpoints / Integration
+    if any(k in combined_text for k in ["api", "endpoint", "payload", "http", "contract", "json"]):
+        # Box 1
+        draw.rounded_rectangle([65, 175, 415, 480], radius=12, fill=(10, 25, 55), outline=(245, 102, 66), width=2)
+        draw.text((85, 205), "REQUEST / PAYLOAD", fill=(245, 102, 66))
+        draw.text((85, 250), f"• Ingest: {b1_text[:30]}\n• Headers & Tokens\n• JSON Schema Guard", fill=(226, 232, 240))
+        
+        # Box 2
+        draw.rounded_rectangle([455, 175, 825, 480], radius=12, fill=(10, 25, 55), outline=(34, 197, 94), width=2)
+        draw.text((475, 205), "INTEGRATION SERVICE", fill=(34, 197, 94))
+        draw.text((475, 250), f"• Logic: {b2_text[:30]}\n• Data Validation Rules\n• Subsystem Routing", fill=(226, 232, 240))
+        
+        # Box 3
+        draw.rounded_rectangle([865, 175, 1215, 480], radius=12, fill=(10, 25, 55), outline=(168, 85, 247), width=2)
+        draw.text((885, 205), "RESPONSE CODES", fill=(192, 132, 252))
+        draw.text((885, 250), f"• Result: {b3_text[:30]}\n• 200 OK / 400 Bad Request\n• Audit Event Telemetry", fill=(226, 232, 240))
+
+    # Context 2: Database / Storage / Data Model
+    elif any(k in combined_text for k in ["database", "db", "table", "schema", "storage", "sql", "record"]):
+        draw.rounded_rectangle([65, 175, 415, 480], radius=12, fill=(10, 25, 55), outline=(59, 130, 246), width=2)
+        draw.text((85, 205), "ENTITY INGESTION", fill=(59, 130, 246))
+        draw.text((85, 250), f"• Input: {b1_text[:30]}\n• Type Cast & Constraints\n• Foreign Key Checks", fill=(226, 232, 240))
+        
+        draw.rounded_rectangle([455, 175, 825, 480], radius=12, fill=(10, 25, 55), outline=(245, 102, 66), width=2)
+        draw.text((475, 205), "PERSISTENCE & COMMIT", fill=(245, 102, 66))
+        draw.text((475, 250), f"• Transaction: {b2_text[:30]}\n• ACID Compliant Writes\n• Rollback on Exception", fill=(226, 232, 240))
+        
+        draw.rounded_rectangle([865, 175, 1215, 480], radius=12, fill=(10, 25, 55), outline=(34, 197, 94), width=2)
+        draw.text((885, 205), "DATA SYNC & VIEWS", fill=(34, 197, 94))
+        draw.text((885, 250), f"• Sync: {b3_text[:30]}\n• Read-Model Updates\n• Cache Invalidation", fill=(226, 232, 240))
+
+    # Context 3: Security / Auth / Access Control
+    elif any(k in combined_text for k in ["security", "auth", "token", "permission", "role", "login"]):
+        draw.rounded_rectangle([65, 175, 415, 480], radius=12, fill=(10, 25, 55), outline=(239, 68, 68), width=2)
+        draw.text((85, 205), "AUTH VERIFICATION", fill=(239, 68, 68))
+        draw.text((85, 250), f"• Check: {b1_text[:30]}\n• Bearer JWT Extraction\n• Expiry & Signature", fill=(226, 232, 240))
+        
+        draw.rounded_rectangle([455, 175, 825, 480], radius=12, fill=(10, 25, 55), outline=(245, 102, 66), width=2)
+        draw.text((475, 205), "ROLE MATRIX (RBAC)", fill=(245, 102, 66))
+        draw.text((475, 250), f"• Scope: {b2_text[:30]}\n• Admin / User / Viewer\n• Access Enforcement", fill=(226, 232, 240))
+        
+        draw.rounded_rectangle([865, 175, 1215, 480], radius=12, fill=(10, 25, 55), outline=(34, 197, 94), width=2)
+        draw.text((885, 205), "SESSION STATE", fill=(34, 197, 94))
+        draw.text((885, 250), f"• Granted: {b3_text[:30]}\n• Secure Context Active\n• Audit Logging", fill=(226, 232, 240))
+
+    # Context 4: General Workflow / User Journey / Business Rules
+    else:
+        draw.rounded_rectangle([65, 175, 415, 480], radius=12, fill=(10, 25, 55), outline=(59, 130, 246), width=2)
+        draw.text((85, 205), "STAGE 1 • PRECONDITIONS", fill=(59, 130, 246))
+        draw.text((85, 250), f"• Step: {b1_text[:30]}\n• UI Initial State\n• Mandatory Inputs", fill=(226, 232, 240))
+        
+        draw.rounded_rectangle([455, 175, 825, 480], radius=12, fill=(10, 25, 55), outline=(34, 197, 94), width=2)
+        draw.text((475, 205), "STAGE 2 • LOGIC EXECUTION", fill=(34, 197, 94))
+        draw.text((475, 250), f"• Rule: {b2_text[:30]}\n• Data Transformation\n• State Machine Update", fill=(226, 232, 240))
+        
+        draw.rounded_rectangle([865, 175, 1215, 480], radius=12, fill=(10, 25, 55), outline=(168, 85, 247), width=2)
+        draw.text((885, 205), "STAGE 3 • OUTCOME / UI", fill=(192, 132, 252))
+        draw.text((885, 250), f"• Output: {b3_text[:30]}\n• Feedback & Navigation\n• Success Confirmation", fill=(226, 232, 240))
     
     # Connecting Arrows
     draw.rectangle([415, 320, 455, 326], fill=(245, 102, 66))
     draw.rectangle([825, 320, 865, 326], fill=(34, 197, 94))
     
-    # Watermark Mark Badge
-    draw.rounded_rectangle([920, 625, 1235, 675], radius=8, fill=(15, 30, 65), outline=(245, 102, 66), width=2)
-    draw.text((945, 642), "ReqAssist • AI Generated Visual", fill=(245, 102, 66))
+    # Watermark
+    draw.rounded_rectangle([900, 625, 1235, 675], radius=8, fill=(15, 30, 65), outline=(245, 102, 66), width=2)
+    draw.text((925, 642), "ReqAssist • AI Generated Visual", fill=(245, 102, 66))
     
     bio = io.BytesIO()
     img.save(bio, format="PNG")
@@ -585,7 +608,7 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
     Generates a 16:9 Presentation:
     - Dark Blue Background (#051330)
     - White Font (#FFFFFF)
-    - Integrates AI Generated Visual Diagrams AND Figma images with ReqAssist mark across slides
+    - Integrates AI Content-Driven Visual Diagrams AND Figma screens with ReqAssist watermark
     """
     prs = Presentation()
     prs.slide_width = Inches(13.333)
@@ -643,7 +666,7 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
             p.font.color.rgb = SOFT_WHITE
             p.space_after = Pt(10)
             
-        # 3. Embed Visual: Alternate between AI-Generated Diagrams & Figma Screens
+        # 3. Context-Driven Visual Asset (AI Scene Diagram based on slide text OR Figma screen)
         if is_visual_slide:
             try:
                 if prepared_figma and not use_ai_diagram_toggle:
@@ -651,8 +674,7 @@ def create_pptx_with_images(slides_json: list, figma_files: list = None) -> io.B
                     figma_idx += 1
                     use_ai_diagram_toggle = True
                 else:
-                    first_bullet = bullets[0] if bullets else "Architecture Workflow & Requirements Analysis"
-                    img_stream = generate_ai_diagram_card(slide_data.get("title", "Architecture"), first_bullet)
+                    img_stream = generate_contextual_ai_slide_diagram(slide_data.get("title", "Architecture"), bullets)
                     use_ai_diagram_toggle = False if prepared_figma else True
                 
                 img_stream.seek(0)
@@ -760,7 +782,6 @@ def normalize_image_to_16_9(img_stream_or_file) -> str:
     y = (720 - im.height) // 2
     canvas.paste(im, (x, y))
     
-    # ReqAssist watermark stamp
     draw = ImageDraw.Draw(canvas)
     draw.rounded_rectangle([1000, 660, 1250, 705], radius=6, fill=(15, 30, 65), outline=(245, 102, 66), width=2)
     draw.text((1020, 675), "ReqAssist 🚀 Demo", fill=(255, 255, 255))
@@ -780,8 +801,8 @@ def set_clip_audio(video_clip, audio_clip):
 
 def generate_mp4_video_robust(markdown_text: str, figma_files: list, lang: str = "en"):
     """
-    Directly compiles an MP4 video using AI-Generated Visual Cards AND 
-    uploaded Figma/PPT screens, synced with the AI voiceover.
+    Directly compiles an MP4 video combining content-aware AI scene cards 
+    with uploaded Figma screens, synced to the AI voiceover.
     """
     if not MOVIEPY_AVAILABLE:
         return None, f"MoviePy engine not initialized. ({MOVIEPY_ERROR})"
@@ -793,7 +814,6 @@ def generate_mp4_video_robust(markdown_text: str, figma_files: list, lang: str =
     temp_img_paths = []
     
     try:
-        # 1. Synthesize audio
         narration = extract_voiceover_script(markdown_text)
         temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         temp_audio_path = temp_audio.name
@@ -805,29 +825,26 @@ def generate_mp4_video_robust(markdown_text: str, figma_files: list, lang: str =
         audio_clip = AudioFileClip(temp_audio_path)
         total_duration = max(float(audio_clip.duration), 5.0)
 
-        # 2. Build multi-frame visual sequence (AI Diagram Cards + Figma Images)
-        # AI Card 1: Title & Overview
-        ai_card_1 = generate_ai_diagram_card("System Requirements Walkthrough", "End-to-End Functional Architecture Overview")
+        # 1. AI Overview Card
+        ai_card_1 = generate_contextual_ai_slide_diagram("Demo Architecture Overview", ["Functional Workflow Walkthrough", "UI Interaction Flow", "Data & Contract State"])
         temp_img_paths.append(normalize_image_to_16_9(ai_card_1))
 
-        # Add Figma Screens
+        # 2. Figma UI Screens
         if figma_files and len(figma_files) > 0:
             for f in figma_files:
                 p = normalize_image_to_16_9(f)
                 temp_img_paths.append(p)
 
-        # AI Card 2: Logic & API Contracts Diagram
-        ai_card_2 = generate_ai_diagram_card("Validation Logic & Data Contracts", "Payload Processing, DB Events & Response Pipeline")
+        # 3. AI Execution & Logic Card
+        ai_card_2 = generate_contextual_ai_slide_diagram("Validation & Backend Processing", ["Validation Rules & Error Checks", "State Transitions & DB Commit", "Success Response Code"])
         temp_img_paths.append(normalize_image_to_16_9(ai_card_2))
 
-        # 3. Create video timeline
         duration_per_slide = total_duration / len(temp_img_paths)
         clips = [set_clip_duration(ImageClip(p), duration_per_slide) for p in temp_img_paths]
         
         video_clip = concatenate_videoclips(clips, method="compose")
         video_clip = set_clip_audio(video_clip, audio_clip)
 
-        # 4. Render MP4
         temp_video = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
         temp_video_path = temp_video.name
         temp_video.close()
@@ -982,9 +999,12 @@ if needs_figma and not figma_images:
     missing_core_items.append(ui["figma_title"])
 
 # ---------------------------------------------------------
-# Centered, Prominent #051330 Action Button
+# Centered Orange Circular Progress Slot (Positioned ABOVE the Button)
 # ---------------------------------------------------------
-st.markdown("<div style='margin-top: 4.5rem; margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
+progress_slot = st.empty()
+
+# Centered Prominent Action Button
+st.markdown("<div style='margin-top: 2rem; margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
 
 col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
 with col_b2:
@@ -1000,9 +1020,9 @@ if generate_clicked:
         show_missing_data_popup(missing_core_items)
         st.stop()
 
-    # Centered Progress Ring
-    progress_slot = st.empty()
-    render_circular_progress(progress_slot, 15, f"ReqAssist is analyzing source notes ({lang_key})...")
+    # Progress bar starts at 1% directly above the button
+    render_circular_progress(progress_slot, 1, f"ReqAssist initialized ({lang_key})...")
+    time.sleep(0.2)
     
     is_quiz_mode = (current_idx == 6)
 
@@ -1089,8 +1109,10 @@ Generate the complete artifact strictly adhering to the requested templates and 
             contents.append(Image.open(img))
 
     try:
-        render_circular_progress(progress_slot, 45, f"Synthesizing requirements with AI...")
+        render_circular_progress(progress_slot, 20, f"Analyzing source notes and screen layouts...")
+        time.sleep(0.3)
         
+        render_circular_progress(progress_slot, 55, f"Synthesizing requirements with AI...")
         output_text, model_used = generate_resilient_content(
             client_inst=client,
             contents=contents,
@@ -1102,14 +1124,13 @@ Generate the complete artifact strictly adhering to the requested templates and 
         st.session_state["generated_option"] = current_option
         st.session_state["generated_idx"] = current_idx
         
-        # Reset previous video/quiz state
         st.session_state["generated_mp4_bytes"] = None
         st.session_state["generated_audio_bytes"] = None
         st.session_state["video_error"] = None
         
-        # If Demo Video was requested, pre-render the MP4 directly with AI Cards + Figma Images
+        # If Demo Video was requested, compile MP4
         if current_idx == 3:
-            render_circular_progress(progress_slot, 75, "Compiling AI Visual Cards & encoding MP4 video...")
+            render_circular_progress(progress_slot, 85, "Compiling AI Visual Cards & encoding MP4 video...")
             mp4_bytes, v_err = generate_mp4_video_robust(output_text, figma_images, lang=lang_key)
             if mp4_bytes:
                 st.session_state["generated_mp4_bytes"] = mp4_bytes
@@ -1119,7 +1140,6 @@ Generate the complete artifact strictly adhering to the requested templates and 
                 if audio_bio:
                     st.session_state["generated_audio_bytes"] = audio_bio.getvalue()
         
-        # If Quiz was requested, parse JSON
         if is_quiz_mode:
             try:
                 st.session_state["quiz_data"] = json.loads(output_text)
@@ -1266,7 +1286,7 @@ if "generated_output" in st.session_state and st.session_state["generated_output
                 use_container_width=True
             )
             
-        # 2. PowerPoint (.pptx) Export (Dark Blue Theme + White Font + AI Diagrams & Figma Screens with ReqAssist mark)
+        # 2. PowerPoint (.pptx) Export (Dark Blue Theme + White Font + Context-Driven Visuals)
         with col_d2:
             try:
                 ppt_json_text, _ = generate_resilient_content(
